@@ -81,13 +81,12 @@ LOOP:
 		select {
 		case data := <-in:
 
-			dataStr := strconv.Itoa(int(data.(uint32)))
-
-			if dataStr == "the_end" {
-				out <- "the_end"
-				//fmt.Println("the_end")
+			if data == nil {
+				fmt.Println("Single hash closed")
 				break LOOP
 			}
+
+			dataStr := strconv.Itoa(data.(int))
 
 			wg := &sync.WaitGroup{}
 			wg.Add(2)
@@ -116,8 +115,10 @@ LOOP:
 func MultiHash(in, out chan interface{}) {
 LOOP:
 	for data := range in {
-		if data == "the_end" {
-			out <- data
+
+		if data == nil {
+			//out <- data
+			fmt.Println("Multi hash closed")
 			break LOOP
 		}
 
@@ -145,7 +146,7 @@ func CombineResults(in, out chan interface{}) {
 	var dataArr []string
 LOOP:
 	for data := range in {
-		if data == "the_end" {
+		if data == nil {
 			sort.Strings(dataArr)
 			var result string
 			for i, res := range dataArr {
@@ -155,6 +156,7 @@ LOOP:
 				}
 			}
 			out <- result
+			fmt.Println("Combine results closed")
 			break LOOP
 		}
 

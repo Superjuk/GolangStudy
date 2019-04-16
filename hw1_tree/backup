@@ -1,0 +1,97 @@
+package main
+
+import (
+	"fmt"
+	"io"
+	"io/ioutil"
+	"os"
+	"path/filepath"
+	"strconv"
+)
+
+const (
+	branchStart = "├───"
+	branchEnd   = "└───"
+	tab         = "\t"
+	vertTab     = "│\t"
+)
+
+func marker2(dirPath string, prefix string, isPrintFiles bool) (err error) {
+	files, errRead := ioutil.ReadDir(dirPath)
+	if errRead != nil {
+		errStr := "Unable to get files list in " + dirPath
+		panic(errStr)
+	}
+
+	if !isPrintFiles {
+		var dirs []os.FileInfo
+		for _, file := range files {
+			if file.IsDir() {
+				dirs = append(dirs, file)
+			}
+		}
+		files = dirs
+	}
+
+	for idx, file := range files {
+		isLastIndex := idx == len(files)-1
+
+		branch := prefix
+		if isLastIndex {
+			branch = branch + branchEnd
+		} else {
+			branch = branch + branchStart
+		}
+
+		branch = branch + file.Name() + fileSize(file)
+
+		fmt.Println(branch)
+
+		if file.IsDir() {
+			if isLastIndex {
+				marker2(dirPath+string(os.PathSeparator)+file.Name(), prefix+tab, isPrintFiles)
+			} else {
+				marker2(dirPath+string(os.PathSeparator)+file.Name(), prefix+vertTab, isPrintFiles)
+			}
+		}
+	}
+
+	err = nil
+	return err
+}
+
+func dirTree(out io.Writer, rootPath string, printFiles bool) error {
+	root, errAbs := filepath.Abs(rootPath)
+	if errAbs != nil {
+		panic("Unable to get root path")
+	}
+
+	marker2(root, "", printFiles)
+
+	return nil
+}
+
+func fileSize(fileInfo os.FileInfo) string {
+	if fileInfo.IsDir() {
+		return ""
+	}
+
+	if size := fileInfo.Size(); size > 0 {
+		return " (" + strconv.FormatInt(size, 10) + "b)"
+	}
+
+	return " (empty)"
+}
+
+func main() {
+	out := os.Stdout
+	if !(len(os.Args) == 2 || len(os.Args) == 3) {
+		panic("usage go run main.go . [-f]")
+	}
+	path := os.Args[1]
+	printFiles := len(os.Args) == 3 && os.Args[2] == "-f"
+	err := dirTree(out, path, printFiles)
+	if err != nil {
+		panic(err.Error())
+	}
+}

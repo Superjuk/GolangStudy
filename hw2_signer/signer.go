@@ -17,30 +17,21 @@ var (
 
 func ExecutePipeline(jobs ...job) {
 	var chans []chan interface{}
+	dummy := make(chan interface{})
+
+	chans = append(chans, dummy)
 	for i := 0; i < len(jobs); i++ {
 		chans = append(chans, make(chan interface{}, MaxInputDataLen))
 	}
-
-	dummy := make(chan interface{})
-
 	chans = append(chans, dummy)
 
 	wg := &sync.WaitGroup{}
 
-	//	d := time.Now().Add(10 * time.Millisecond)
-	//	ctx, cancel := context.WithDeadline(context.Background(), d)
-
-	//jobs[0](dummy, chans[0])
-	wg.Add(1)
-	jobWrapper(jobs[0], dummy, chans[0], wg)
 	fmt.Println("run ExecutePipline")
 
-	jobSlice := jobs[1:]
-
-	for i, job := range jobSlice {
-		//go job(chans[i+1], chans[i+2])
+	for i, job := range jobs {
 		wg.Add(1)
-		go jobWrapper(job, chans[i+1], chans[i+2], wg)
+		go jobWrapper(job, chans[i], chans[i+1], wg)
 	}
 
 LOOP:
@@ -54,7 +45,15 @@ LOOP:
 				break LOOP
 			}
 
-			chans[1] <- num.(uint32)
+			if numU32, isOk := num.(uint32); isOk == true {
+				chans[1] <- numU32
+			} else if num32, isOk := num.(int32); isOk == true {
+				chans[1] <- num32
+			} else if numU64, isOk := num.(uint64); isOk == true {
+				chans[1] <- numU64
+			} else if num64, isOk := num.(int64); isOk == true {
+				chans[1] <- num64
+			}
 
 		default:
 			break LOOP

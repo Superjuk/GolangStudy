@@ -82,6 +82,7 @@ LOOP:
 		case data := <-in:
 
 			if data == nil {
+				out <- data
 				fmt.Println("Single hash closed")
 				break LOOP
 			}
@@ -108,6 +109,9 @@ LOOP:
 			wg.Wait()
 
 			out <- dataSl[0] + "~" + dataSl[1]
+			//		default:
+			//			fmt.Println("Single hash closed")
+			//			break LOOP
 		}
 	}
 }
@@ -117,7 +121,7 @@ LOOP:
 	for data := range in {
 
 		if data == nil {
-			//out <- data
+			out <- data
 			fmt.Println("Multi hash closed")
 			break LOOP
 		}
@@ -137,7 +141,7 @@ LOOP:
 		for _, str := range dataSl {
 			longData += str
 		}
-		fmt.Println(longData)
+		fmt.Println("LongData = ", longData)
 		out <- longData
 	}
 }
@@ -160,6 +164,7 @@ LOOP:
 			break LOOP
 		}
 
+		fmt.Println("DataArr = ", dataArr)
 		dataArr = append(dataArr, data.(string))
 		//sort.Strings(dataArr)
 	}

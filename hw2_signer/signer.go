@@ -34,32 +34,6 @@ func ExecutePipeline(jobs ...job) {
 		go jobWrapper(job, chans[i], chans[i+1], wg)
 	}
 
-LOOP:
-	for {
-		select {
-		case num := <-chans[0]:
-			fmt.Println(num)
-
-			if num == nil {
-				close(chans[1])
-				break LOOP
-			}
-
-			if numU32, isOk := num.(uint32); isOk == true {
-				chans[1] <- numU32
-			} else if num32, isOk := num.(int32); isOk == true {
-				chans[1] <- num32
-			} else if numU64, isOk := num.(uint64); isOk == true {
-				chans[1] <- numU64
-			} else if num64, isOk := num.(int64); isOk == true {
-				chans[1] <- num64
-			}
-
-		default:
-			break LOOP
-		}
-	}
-
 	wg.Wait()
 
 	fmt.Println("End ExecutePipeline")

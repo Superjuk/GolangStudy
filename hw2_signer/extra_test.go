@@ -38,7 +38,7 @@ func TestByIlia(t *testing.T) {
 		job(func(in, out chan interface{}) {
 			for val := range in {
 				fmt.Println("Job[2]: Val =", val)
-				fmt.Println("collected", val)
+				fmt.Println("collected", recieved)
 				atomic.AddUint32(&recieved, val.(uint32))
 			}
 		}),

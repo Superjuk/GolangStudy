@@ -101,7 +101,7 @@ func TestSigner(t *testing.T) {
 		return dataHash
 	}
 
-	inputData := []int{0, 1, 1, 2, 3, 5, 8}
+	inputData := []int{0, 1, 1, 2, 3, 5, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18}
 	//inputData := []int{0, 1}
 	//inputData := []int{0}
 
@@ -140,12 +140,11 @@ func TestSigner(t *testing.T) {
 		t.Errorf("execution too long\nGot: %s\nExpected: <%s", end, time.Second*3)
 	}
 
-	// 8 потому что 2 в SingleHash и 6 в MultiHash
+	//8 потому что 2 в SingleHash и 6 в MultiHash
 	if int(OverheatLockCounter) != len(inputData) ||
 		int(OverheatUnlockCounter) != len(inputData) ||
 		int(DataSignerMd5Counter) != len(inputData) ||
 		int(DataSignerCrc32Counter) != len(inputData)*8 {
 		t.Errorf("not enough hash-func calls")
 	}
-
 }

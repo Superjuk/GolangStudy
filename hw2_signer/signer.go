@@ -1,19 +1,18 @@
 package main
 
 import (
-	//	"context"
 	"fmt"
-	//	"runtime"
 	"sort"
 	"strconv"
 	"sync"
 	"sync/atomic"
-	//	"time"
 )
 
 var (
-	md5Lock uint32 = 0
-	dummy          = make(chan interface{})
+	md5Lock      uint32 = 0
+	dummy               = make(chan interface{})
+	dataArr      []string
+	dataArrMutex = &sync.Mutex{}
 )
 
 func ExecutePipeline(jobs ...job) {
@@ -40,7 +39,6 @@ func ExecutePipeline(jobs ...job) {
 
 		for i, job := range jobsSlice {
 			wg.Add(1)
-
 			go jobWrapper(job, chans[i], chans[i+1], wg)
 		}
 
@@ -63,54 +61,35 @@ func jobWrapper(jb job, in, out chan interface{}, wg *sync.WaitGroup) {
 }
 
 func SingleHash(in, out chan interface{}) {
-LOOP:
-	for {
-		select {
-		case data := <-in:
+	for data := range in {
+		dataStr := strconv.Itoa(data.(int))
 
-			if data == nil {
-				out <- data
-				fmt.Println("Single hash closed")
-				break LOOP
-			}
+		wg := &sync.WaitGroup{}
+		wg.Add(2)
 
-			dataStr := strconv.Itoa(data.(int))
+		dataSl := make([]string, 2)
 
-			wg := &sync.WaitGroup{}
-			wg.Add(2)
-
-			dataSl := make([]string, 2)
-
-			md5 := func(str string) string {
-				for {
-					if unlock := atomic.CompareAndSwapUint32(&md5Lock, 0, 1); unlock {
-						defer atomic.StoreUint32(&md5Lock, 0)
-						return DataSignerMd5(str)
-					}
+		md5 := func(str string) string {
+			for {
+				if unlock := atomic.CompareAndSwapUint32(&md5Lock, 0, 1); unlock {
+					defer atomic.StoreUint32(&md5Lock, 0)
+					return DataSignerMd5(str)
 				}
 			}
-
-			go Crc32Worker(wg, md5(dataStr), dataSl[1:2])
-			go Crc32Worker(wg, dataStr, dataSl[0:1])
-
-			wg.Wait()
-
-			out <- dataSl[0] + "~" + dataSl[1]
-
 		}
+
+		go Crc32Worker(wg, md5(dataStr), dataSl[1:2])
+		go Crc32Worker(wg, dataStr, dataSl[0:1])
+
+		wg.Wait()
+
+		out <- dataSl[0] + "~" + dataSl[1]
 	}
+	fmt.Println("Single hash closed")
 }
 
 func MultiHash(in, out chan interface{}) {
-LOOP:
 	for data := range in {
-
-		if data == nil {
-			out <- data
-			fmt.Println("Multi hash closed")
-			break LOOP
-		}
-
 		wg := &sync.WaitGroup{}
 		wg.Add(6)
 
@@ -129,35 +108,45 @@ LOOP:
 		fmt.Println("LongData = ", longData)
 		out <- longData
 	}
+	fmt.Println("Multi hash closed")
 }
 
 func CombineResults(in, out chan interface{}) {
-	var dataArr []string
-LOOP:
 	for data := range in {
-		if data == nil {
-			sort.Strings(dataArr)
-			var result string
-			for i, res := range dataArr {
-				result += res
-				if i != len(dataArr)-1 {
-					result += "_"
-				}
-			}
-			out <- result
-			fmt.Println("Combine results closed")
-			break LOOP
-		}
+		// if data == nil {
+		// 	sort.Strings(dataArr)
+		// 	var result string
+		// 	for i, res := range dataArr {
+		// 		result += res
+		// 		if i != len(dataArr)-1 {
+		// 			result += "_"
+		// 		}
+		// 	}
+		// 	out <- result
+		// 	fmt.Println("Combine results closed")
+		// 	break LOOP
+		// }
 
+		//dataArrMutex.Lock()
 		fmt.Println("DataArr = ", dataArr)
 		dataArr = append(dataArr, data.(string))
-		//sort.Strings(dataArr)
+		//dataArrMutex.Unlock()
+
+		sort.Strings(dataArr)
+		var result string
+		for i, res := range dataArr {
+			result += res
+			if i != len(dataArr)-1 {
+				result += "_"
+			}
+		}
+		out <- result
+		fmt.Println("Combine results closed")
 	}
 }
 
 func Crc32Worker(wg *sync.WaitGroup, data string, slice []string) {
 	crc32 := DataSignerCrc32(data)
 	slice[0] = crc32
-	//fmt.Println(crc32)
 	wg.Done()
 }

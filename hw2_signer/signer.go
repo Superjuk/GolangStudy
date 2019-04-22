@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 var (
@@ -28,6 +29,8 @@ func ExecutePipeline(jobs ...job) {
 
 	for num := range rawDataCh {
 		fmt.Println("ExecPipe: num=", num)
+
+		time.Sleep(10 * time.Millisecond)
 
 		var chans []chan interface{}
 		for i := 0; i < jobsSlCount; i++ {

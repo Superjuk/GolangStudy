@@ -1,21 +1,20 @@
 package main
 
 import (
-	//	"fmt"
 	"runtime"
 	"sort"
 	"strconv"
 	"sync"
-	// "sync/atomic"
 )
 
 var (
-	md5Lock uint32 = 0
-	dummy          = make(chan interface{})
-	dataArr []string
-	//dataArrMutex = &sync.Mutex{}
-	wgMd5    = &sync.WaitGroup{}
-	md5Mutex = &sync.Mutex{}
+	md5Lock      uint32 = 0
+	dummy               = make(chan interface{})
+	dataArr      []string
+	dataArrMutex = &sync.Mutex{}
+	wgGl         = &sync.WaitGroup{}
+	md5Mutex     = &sync.Mutex{}
+	numsStrArr   = [...]string{"0", "1", "2", "3", "4", "5"}
 )
 
 func ExecutePipeline(jobs ...job) {
@@ -110,8 +109,8 @@ LOOP:
 
 			dataSl := make([]string, 6)
 
-			for i := 0; i < 6; i++ {
-				go Crc32Worker(wg, strconv.Itoa(i)+data.(string), dataSl[i:i+1])
+			for i, num := range numsStrArr {
+				go Crc32Worker(wg, num+data.(string), dataSl[i:i+1])
 			}
 
 			wg.Wait()
@@ -131,6 +130,7 @@ func CombineResults(in, out chan interface{}) {
 LOOP:
 	for data := range in {
 		if data == nil {
+			dataArrMutex.Lock()
 			sort.Strings(dataArr)
 			var result string
 			for i, res := range dataArr {
@@ -139,11 +139,15 @@ LOOP:
 					result += "_"
 				}
 			}
+			dataArrMutex.Unlock()
 			out <- result
 			break LOOP
 		}
 
+		dataArrMutex.Lock()
 		dataArr = append(dataArr, data.(string))
+		dataArrMutex.Unlock()
+
 		runtime.Gosched()
 	}
 }
@@ -153,4 +157,8 @@ func Crc32Worker(wg *sync.WaitGroup, data string, slice []string) {
 	slice[0] = crc32
 	wg.Done()
 	runtime.Gosched()
+}
+
+func main() {
+
 }

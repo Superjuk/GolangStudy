@@ -14,6 +14,7 @@ var (
 	dataArrMutex = &sync.Mutex{}
 	wgGl         = &sync.WaitGroup{}
 	md5Mutex     = &sync.Mutex{}
+	jobMutex     = &sync.Mutex{}
 	numsStrArr   = [...]string{"0", "1", "2", "3", "4", "5"}
 )
 
@@ -54,7 +55,10 @@ func jobWrapper(jb job, in, out chan interface{}, wg *sync.WaitGroup) {
 		defer close(out)
 	}
 
+	jobMutex.Lock()
 	jb(in, out)
+	jobMutex.Unlock()
+
 	runtime.Gosched()
 }
 

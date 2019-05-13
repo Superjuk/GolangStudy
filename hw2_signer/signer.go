@@ -56,9 +56,11 @@ func SingleHash(in, out chan interface{}) {
 		return md5Out
 	}
 
-	hash := func(str string, out chan interface{}, wgSH *sync.WaitGroup) {
+	hash := func(data interface{}, out chan interface{}, wgSH *sync.WaitGroup) {
 		wg := &sync.WaitGroup{}
 		wg.Add(2)
+
+		str := strconv.Itoa(data.(int))
 
 		dataSl := make([]string, 2)
 
@@ -78,9 +80,8 @@ func SingleHash(in, out chan interface{}) {
 
 	for data := range in {
 		wgSH.Add(1)
-		dataStr := strconv.Itoa(data.(int))
 
-		go hash(dataStr, out, wgSH)
+		go hash(data, out, wgSH)
 	}
 
 	wgSH.Wait()
@@ -126,7 +127,6 @@ func CombineResults(in, out chan interface{}) {
 	for data := range in {
 		dataArrMutex.Lock()
 		dataArr = append(dataArr, data.(string))
-		//fmt.Println("dataArr =", dataArr)
 		dataArrMutex.Unlock()
 
 		runtime.Gosched()

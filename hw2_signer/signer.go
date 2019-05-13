@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 var (
@@ -24,9 +25,10 @@ func ExecutePipeline(jobs ...job) {
 	chans = append(chans, dummy)
 
 	for range jobs {
-		wgGl.Add(1)
 		chans = append(chans, make(chan interface{}, MaxInputDataLen))
 	}
+
+	wgGl.Add(len(jobs))
 
 	for i, job := range jobs {
 		go jobWrapper(job, chans[i], chans[i+1])
@@ -49,6 +51,8 @@ func jobWrapper(jb job, in, out chan interface{}) {
 
 /*SingleHash count MD5 and CRC32*/
 func SingleHash(in, out chan interface{}) {
+	start := time.Now()
+
 	md5 := func(str string) string {
 		md5Mutex.Lock()
 		md5Out := DataSignerMd5(str)
@@ -86,10 +90,13 @@ func SingleHash(in, out chan interface{}) {
 
 	wgSH.Wait()
 
-	fmt.Println("Single hash done!!!")
+	end := time.Since(start)
+	fmt.Println("Single hash done!!! ", end)
 }
 
 func MultiHash(in, out chan interface{}) {
+	start := time.Now()
+
 	hash := func(str string, out chan interface{}, wgMh *sync.WaitGroup) {
 		wg := &sync.WaitGroup{}
 		wg.Add(6)
@@ -120,10 +127,13 @@ func MultiHash(in, out chan interface{}) {
 
 	wgMh.Wait()
 
-	fmt.Println("MultiHash done!!!")
+	end := time.Since(start)
+	fmt.Println("MultiHash done!!! ", end)
 }
 
 func CombineResults(in, out chan interface{}) {
+	start := time.Now()
+
 	for data := range in {
 		dataArrMutex.Lock()
 		dataArr = append(dataArr, data.(string))
@@ -136,9 +146,11 @@ func CombineResults(in, out chan interface{}) {
 
 	sort.Strings(dataArr)
 	result := strings.Join(dataArr, "_")
-	fmt.Println("result =", result)
 
 	out <- result
+
+	end := time.Since(start)
+	fmt.Println("CombineResults done!!! ", end)
 }
 
 func Crc32Worker(wg *sync.WaitGroup, data string, slice []string) {

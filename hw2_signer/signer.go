@@ -14,7 +14,6 @@ var (
 	dataArr      []string
 	dataArrMutex = &sync.Mutex{}
 	md5Mutex     = &sync.Mutex{}
-	testMutex    = &sync.Mutex{}
 	numsStrArr   = [...]string{"0", "1", "2", "3", "4", "5"}
 )
 
@@ -68,7 +67,6 @@ func SingleHash(in, out chan interface{}) {
 
 		wg.Wait()
 
-		fmt.Println("SingleHash out =", strings.Join(dataSl, "~"))
 		out <- strings.Join(dataSl, "~")
 
 		wgSH.Done()
@@ -104,7 +102,6 @@ func MultiHash(in, out chan interface{}) {
 
 		wg.Wait()
 
-		fmt.Println("MultiHash out =", strings.Join(dataSl, ""))
 		out <- strings.Join(dataSl, "")
 
 		wgMh.Done()
@@ -129,13 +126,12 @@ func CombineResults(in, out chan interface{}) {
 	for data := range in {
 		dataArrMutex.Lock()
 		dataArr = append(dataArr, data.(string))
-		fmt.Println("dataArr =", dataArr)
+		//fmt.Println("dataArr =", dataArr)
 		dataArrMutex.Unlock()
 
 		runtime.Gosched()
 	}
 
-	fmt.Println("Combine results fires!")
 	fmt.Println("DataArr len=", len(dataArr))
 
 	sort.Strings(dataArr)

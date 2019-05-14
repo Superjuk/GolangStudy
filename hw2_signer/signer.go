@@ -53,13 +53,6 @@ func jobWrapper(jb job, in, out chan interface{}) {
 func SingleHash(in, out chan interface{}) {
 	start := time.Now()
 
-	md5 := func(str string) string {
-		md5Mutex.Lock()
-		md5Out := DataSignerMd5(str)
-		md5Mutex.Unlock()
-		return md5Out
-	}
-
 	hash := func(data interface{}, out chan interface{}, wgSH *sync.WaitGroup) {
 		wg := &sync.WaitGroup{}
 		wg.Add(2)
@@ -69,7 +62,7 @@ func SingleHash(in, out chan interface{}) {
 		dataSl := make([]string, 2)
 
 		go Crc32Worker(wg, str, dataSl[0:1])
-		go Crc32Worker(wg, md5(str), dataSl[1:2])
+		go Md5Worker(wg, str, dataSl[1:2])
 
 		wg.Wait()
 
@@ -84,14 +77,13 @@ func SingleHash(in, out chan interface{}) {
 
 	for data := range in {
 		wgSH.Add(1)
-
 		go hash(data, out, wgSH)
 	}
 
 	wgSH.Wait()
 
-	end := time.Since(start)
-	fmt.Println("Single hash done!!! ", end)
+	end := time.Now()
+	fmt.Println("Single hash done!!! ", end.Sub(start))
 }
 
 func MultiHash(in, out chan interface{}) {
@@ -121,14 +113,13 @@ func MultiHash(in, out chan interface{}) {
 
 	for data := range in {
 		wgMh.Add(1)
-
 		go hash(data.(string), out, wgMh)
 	}
 
 	wgMh.Wait()
 
-	end := time.Since(start)
-	fmt.Println("MultiHash done!!! ", end)
+	end := time.Now()
+	fmt.Println("MultiHash done!!! ", end.Sub(start))
 }
 
 func CombineResults(in, out chan interface{}) {
@@ -157,5 +148,43 @@ func Crc32Worker(wg *sync.WaitGroup, data string, slice []string) {
 	crc32 := DataSignerCrc32(data)
 	slice[0] = crc32
 	wg.Done()
+	runtime.Gosched()
+}
+
+func Crc32WorkerChan(wg *sync.WaitGroup, data string) <-chan string {
+	out := make(chan string)
+	out <- DataSignerCrc32(data)
+	wg.Done()
+	return out
+}
+
+func Md5Worker(wg *sync.WaitGroup, str string, slice []string) {
+	wgMd5 := &sync.WaitGroup{}
+	out := make(chan string)
+
+	md5 := func(str string) {
+		md5Mutex.Lock()
+		out <- DataSignerMd5(str)
+		md5Mutex.Unlock()
+	}
+
+	crc32 := func(in chan string) {
+		data := <-in
+		crc32 := DataSignerCrc32(data)
+		slice[0] = crc32
+		wgMd5.Done()
+	}
+
+	wgMd5.Add(1)
+
+	go md5(str)
+	go crc32(out)
+
+	go func() {
+		wgMd5.Wait()
+		wg.Done()
+		close(out)
+	}()
+
 	runtime.Gosched()
 }

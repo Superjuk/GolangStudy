@@ -1,13 +1,11 @@
 package main
 
 import (
-	"fmt"
 	"runtime"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 )
 
 var (
@@ -25,7 +23,7 @@ func ExecutePipeline(jobs ...job) {
 	chans = append(chans, dummy)
 
 	for range jobs {
-		chans = append(chans, make(chan interface{}, MaxInputDataLen))
+		chans = append(chans, make(chan interface{}))
 	}
 
 	wgGl.Add(len(jobs))
@@ -39,7 +37,6 @@ func ExecutePipeline(jobs ...job) {
 	wgGl.Wait()
 }
 
-/**/
 func jobWrapper(jb job, in, out chan interface{}) {
 	defer wgGl.Done()
 	defer close(out)
@@ -49,11 +46,8 @@ func jobWrapper(jb job, in, out chan interface{}) {
 	runtime.Gosched()
 }
 
-/*SingleHash count MD5 and CRC32*/
 func SingleHash(in, out chan interface{}) {
-	start := time.Now()
-
-	hash := func(data interface{}, out chan interface{}, wgSH *sync.WaitGroup) {
+	hash := func(data interface{}, wgSH *sync.WaitGroup) {
 		wg := &sync.WaitGroup{}
 		wg.Add(1)
 
@@ -76,18 +70,13 @@ func SingleHash(in, out chan interface{}) {
 
 	for data := range in {
 		wgSH.Add(1)
-		go hash(data, out, wgSH)
+		go hash(data, wgSH)
 	}
 
 	wgSH.Wait()
-
-	end := time.Now()
-	fmt.Println("Single hash done!!! ", end.Sub(start))
 }
 
 func MultiHash(in, out chan interface{}) {
-	start := time.Now()
-
 	hash := func(str string, out chan interface{}, wgMh *sync.WaitGroup) {
 		wg := &sync.WaitGroup{}
 		wg.Add(6)
@@ -116,14 +105,9 @@ func MultiHash(in, out chan interface{}) {
 	}
 
 	wgMh.Wait()
-
-	end := time.Now()
-	fmt.Println("MultiHash done!!! ", end.Sub(start))
 }
 
 func CombineResults(in, out chan interface{}) {
-	start := time.Now()
-
 	for data := range in {
 		dataArrMutex.Lock()
 		dataArr = append(dataArr, data.(string))
@@ -132,15 +116,10 @@ func CombineResults(in, out chan interface{}) {
 		runtime.Gosched()
 	}
 
-	fmt.Println("DataArr len=", len(dataArr))
-
 	sort.Strings(dataArr)
 	result := strings.Join(dataArr, "_")
 
 	out <- result
-
-	end := time.Since(start)
-	fmt.Println("CombineResults done!!! ", end)
 }
 
 func Crc32Worker(wg *sync.WaitGroup, data string, slice []string) {

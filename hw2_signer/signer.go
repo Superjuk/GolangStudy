@@ -55,14 +55,13 @@ func SingleHash(in, out chan interface{}) {
 
 	hash := func(data interface{}, out chan interface{}, wgSH *sync.WaitGroup) {
 		wg := &sync.WaitGroup{}
-		wg.Add(2)
+		wg.Add(1)
 
 		str := strconv.Itoa(data.(int))
 
 		dataSl := make([]string, 2)
 
-		go Crc32Worker(wg, str, dataSl[0:1])
-		go Md5Worker(wg, str, dataSl[1:2])
+		go Md5Worker(wg, str, dataSl)
 
 		wg.Wait()
 
@@ -151,39 +150,35 @@ func Crc32Worker(wg *sync.WaitGroup, data string, slice []string) {
 	runtime.Gosched()
 }
 
-func Crc32WorkerChan(wg *sync.WaitGroup, data string) <-chan string {
-	out := make(chan string)
-	out <- DataSignerCrc32(data)
-	wg.Done()
-	return out
-}
-
 func Md5Worker(wg *sync.WaitGroup, str string, slice []string) {
 	wgMd5 := &sync.WaitGroup{}
+	md5Out := make(chan string)
 	out := make(chan string)
 
 	md5 := func(str string) {
+		out <- str
 		md5Mutex.Lock()
-		out <- DataSignerMd5(str)
+		md5Out <- DataSignerMd5(str)
 		md5Mutex.Unlock()
 	}
 
-	crc32 := func(in chan string) {
+	crc32 := func(in chan string, index int) {
 		data := <-in
 		crc32 := DataSignerCrc32(data)
-		slice[0] = crc32
+		slice[index] = crc32
 		wgMd5.Done()
 	}
 
-	wgMd5.Add(1)
+	wgMd5.Add(2)
 
 	go md5(str)
-	go crc32(out)
+	go crc32(out, 0)
+	go crc32(md5Out, 1)
 
 	go func() {
 		wgMd5.Wait()
 		wg.Done()
-		close(out)
+		close(md5Out)
 	}()
 
 	runtime.Gosched()

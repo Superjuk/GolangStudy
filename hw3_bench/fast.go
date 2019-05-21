@@ -28,6 +28,7 @@ func FastSearch(out io.Writer) {
 	if err != nil {
 		panic(err)
 	}
+	defer file.Close()
 
 	r := regexp.MustCompile("@")
 	seenBrowsers := []string{}
@@ -36,7 +37,7 @@ func FastSearch(out io.Writer) {
 
 	lines := strings.Split(string(fileContents), "\n")
 
-	for i, line := range lines {
+	parseLine := func(index int, line string) {
 		user := new(Browsers)
 		err := json.Unmarshal([]byte(line), &user)
 		if err != nil {
@@ -64,9 +65,7 @@ func FastSearch(out io.Writer) {
 					uniqueBrowsers++
 				}
 			}
-		}
 
-		for _, browser := range browsers {
 			if ok, err := regexp.MatchString("MSIE", browser); ok && err == nil {
 				isMSIE = true
 				notSeenBefore := true
@@ -83,18 +82,22 @@ func FastSearch(out io.Writer) {
 		}
 
 		if !(isAndroid && isMSIE) {
-			continue
+			return
 		}
 
 		emailRaw := browsersArr.Field(1).Interface().(string)
 		nameRaw := browsersArr.Field(2).Interface().(string)
 
 		email := r.ReplaceAllString(emailRaw, " [at] ")
-		foundUsers += fmt.Sprintf("[%d] %s <%s>\n", i, nameRaw, email)
+		foundUsers += fmt.Sprintf("[%d] %s <%s>\n", index, nameRaw, email)
+	}
+
+	for i, line := range lines {
+		parseLine(i, line)
 	}
 
 	fmt.Fprintln(out, "found users:\n"+foundUsers)
 	fmt.Fprintln(out, "Total unique browsers", len(seenBrowsers))
 }
 
-//func lineParser
+//go test -bench . -benchmem -cpuprofile=cpu.out -memprofile=mem.out -memprofilerate=1

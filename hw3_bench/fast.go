@@ -1,10 +1,10 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"reflect"
 	"regexp"
@@ -23,19 +23,13 @@ func FastSearch(out io.Writer) {
 	if err != nil {
 		panic(err)
 	}
-
-	fileContents, err := ioutil.ReadAll(file)
-	if err != nil {
-		panic(err)
-	}
 	defer file.Close()
+
+	lineContents := bufio.NewReader(file)
 
 	r := regexp.MustCompile("@")
 	seenBrowsers := []string{}
 	uniqueBrowsers := 0
-	foundUsers := ""
-
-	lines := strings.Split(string(fileContents), "\n")
 
 	parseLine := func(index int, line string) {
 		user := new(Browsers)
@@ -52,7 +46,8 @@ func FastSearch(out io.Writer) {
 		browsers := browsersArr.Field(0).Interface().([]string)
 
 		for _, browser := range browsers {
-			if ok, err := regexp.MatchString("Android", browser); ok && err == nil {
+			tempAndr := strings.Split(browser, "Android")
+			if len(tempAndr) > 1 {
 				isAndroid = true
 				notSeenBefore := true
 				for _, item := range seenBrowsers {
@@ -66,7 +61,8 @@ func FastSearch(out io.Writer) {
 				}
 			}
 
-			if ok, err := regexp.MatchString("MSIE", browser); ok && err == nil {
+			tempMsie := strings.Split(browser, "MSIE")
+			if len(tempMsie) > 1 {
 				isMSIE = true
 				notSeenBefore := true
 				for _, item := range seenBrowsers {
@@ -89,15 +85,24 @@ func FastSearch(out io.Writer) {
 		nameRaw := browsersArr.Field(2).Interface().(string)
 
 		email := r.ReplaceAllString(emailRaw, " [at] ")
-		foundUsers += fmt.Sprintf("[%d] %s <%s>\n", index, nameRaw, email)
+		fmt.Fprintf(out, "[%d] %s <%s>\n", index, nameRaw, email)
 	}
 
-	for i, line := range lines {
+	i := 0
+	fmt.Fprintln(out, "found users:")
+	for {
+		line, err := lineContents.ReadString('\n')
+		if err == io.EOF {
+			break
+		}
+
 		parseLine(i, line)
+		i++
 	}
 
-	fmt.Fprintln(out, "found users:\n"+foundUsers)
-	fmt.Fprintln(out, "Total unique browsers", len(seenBrowsers))
+	fmt.Fprintln(out, "\nTotal unique browsers", len(seenBrowsers))
 }
 
 //go test -bench . -benchmem -cpuprofile=cpu.out -memprofile=mem.out -memprofilerate=1
+//go tool pprof hw3_bench.test.exe cpu.out
+//go tool pprof hw3_bench.test.exe mem.out

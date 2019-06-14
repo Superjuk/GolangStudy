@@ -163,17 +163,17 @@ func FastSearch(out io.Writer) {
 	}
 	defer file.Close()
 
-	lineContents := bufio.NewReader(file)
+	scanner := bufio.NewScanner(file)
 
 	seenBrowsers := []string{}
 	uniqueBrowsers := 0
 
-	parseLine := func(index int, line string) {
+	parseLine := func(index int, line []byte) {
+		var lexer jlexer.Lexer
+		lexer.Data = (line)
+
 		user := new(Browsers)
-		err := user.UnmarshalJSON([]byte(line))
-		if err != nil {
-			panic(err)
-		}
+		user.UnmarshalEasyJSON(&lexer)
 
 		isAndroid := false
 		isMSIE := false
@@ -181,8 +181,7 @@ func FastSearch(out io.Writer) {
 		browsers := user.Browsers
 
 		for _, browser := range browsers {
-			tempAndr := strings.Split(browser, "Android")
-			if len(tempAndr) > 1 {
+			if strings.Contains(browser, "Android") {
 				isAndroid = true
 				notSeenBefore := true
 				for _, item := range seenBrowsers {
@@ -196,8 +195,7 @@ func FastSearch(out io.Writer) {
 				}
 			}
 
-			tempMsie := strings.Split(browser, "MSIE")
-			if len(tempMsie) > 1 {
+			if strings.Contains(browser, "MSIE") {
 				isMSIE = true
 				notSeenBefore := true
 				for _, item := range seenBrowsers {
@@ -225,12 +223,8 @@ func FastSearch(out io.Writer) {
 
 	i := 0
 	fmt.Fprintln(out, "found users:")
-	for {
-		line, err := lineContents.ReadString('\n')
-		if err == io.EOF {
-			break
-		}
-
+	for scanner.Scan() {
+		line := scanner.Bytes()
 		parseLine(i, line)
 		i++
 	}

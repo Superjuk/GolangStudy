@@ -2,19 +2,157 @@ package main
 
 import (
 	"bufio"
-	"encoding/json"
+	json "encoding/json"
 	"fmt"
 	"io"
 	"os"
-	"reflect"
-	"regexp"
 	"strings"
+
+	easyjson "github.com/mailru/easyjson"
+	jlexer "github.com/mailru/easyjson/jlexer"
+	jwriter "github.com/mailru/easyjson/jwriter"
 )
 
 type Browsers struct {
 	Browsers []string
 	Email    string
 	Name     string
+}
+
+// suppress unused package warning
+var (
+	_ *json.RawMessage
+	_ *jlexer.Lexer
+	_ *jwriter.Writer
+	_ easyjson.Marshaler
+)
+
+func easyjson89aae3efDecodeGolangStudyHw3BenchEasyjson(in *jlexer.Lexer, out *Browsers) {
+	isTopLevel := in.IsStart()
+	if in.IsNull() {
+		if isTopLevel {
+			in.Consumed()
+		}
+		in.Skip()
+		return
+	}
+	in.Delim('{')
+	for !in.IsDelim('}') {
+		key := in.UnsafeString()
+		in.WantColon()
+		if in.IsNull() {
+			in.Skip()
+			in.WantComma()
+			continue
+		}
+		switch key {
+		case "browsers":
+			if in.IsNull() {
+				in.Skip()
+				out.Browsers = nil
+			} else {
+				in.Delim('[')
+				if out.Browsers == nil {
+					if !in.IsDelim(']') {
+						out.Browsers = make([]string, 0, 4)
+					} else {
+						out.Browsers = []string{}
+					}
+				} else {
+					out.Browsers = (out.Browsers)[:0]
+				}
+				for !in.IsDelim(']') {
+					var v1 string
+					v1 = string(in.String())
+					out.Browsers = append(out.Browsers, v1)
+					in.WantComma()
+				}
+				in.Delim(']')
+			}
+		case "email":
+			out.Email = string(in.String())
+		case "name":
+			out.Name = string(in.String())
+		default:
+			in.SkipRecursive()
+		}
+		in.WantComma()
+	}
+	in.Delim('}')
+	if isTopLevel {
+		in.Consumed()
+	}
+}
+func easyjson89aae3efEncodeGolangStudyHw3BenchEasyjson(out *jwriter.Writer, in Browsers) {
+	out.RawByte('{')
+	first := true
+	_ = first
+	{
+		const prefix string = ",\"browsers\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		if in.Browsers == nil && (out.Flags&jwriter.NilSliceAsEmpty) == 0 {
+			out.RawString("null")
+		} else {
+			out.RawByte('[')
+			for v2, v3 := range in.Browsers {
+				if v2 > 0 {
+					out.RawByte(',')
+				}
+				out.String(string(v3))
+			}
+			out.RawByte(']')
+		}
+	}
+	{
+		const prefix string = ",\"email\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(in.Email))
+	}
+	{
+		const prefix string = ",\"name\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(in.Name))
+	}
+	out.RawByte('}')
+}
+
+// MarshalJSON supports json.Marshaler interface
+func (v Browsers) MarshalJSON() ([]byte, error) {
+	w := jwriter.Writer{}
+	easyjson89aae3efEncodeGolangStudyHw3BenchEasyjson(&w, v)
+	return w.Buffer.BuildBytes(), w.Error
+}
+
+// MarshalEasyJSON supports easyjson.Marshaler interface
+func (v Browsers) MarshalEasyJSON(w *jwriter.Writer) {
+	easyjson89aae3efEncodeGolangStudyHw3BenchEasyjson(w, v)
+}
+
+// UnmarshalJSON supports json.Unmarshaler interface
+func (v *Browsers) UnmarshalJSON(data []byte) error {
+	r := jlexer.Lexer{Data: data}
+	easyjson89aae3efDecodeGolangStudyHw3BenchEasyjson(&r, v)
+	return r.Error()
+}
+
+// UnmarshalEasyJSON supports easyjson.Unmarshaler interface
+func (v *Browsers) UnmarshalEasyJSON(l *jlexer.Lexer) {
+	easyjson89aae3efDecodeGolangStudyHw3BenchEasyjson(l, v)
 }
 
 // вам надо написать более быструю оптимальную этой функции
@@ -27,13 +165,12 @@ func FastSearch(out io.Writer) {
 
 	lineContents := bufio.NewReader(file)
 
-	r := regexp.MustCompile("@")
 	seenBrowsers := []string{}
 	uniqueBrowsers := 0
 
 	parseLine := func(index int, line string) {
 		user := new(Browsers)
-		err := json.Unmarshal([]byte(line), &user)
+		err := user.UnmarshalJSON([]byte(line))
 		if err != nil {
 			panic(err)
 		}
@@ -41,9 +178,7 @@ func FastSearch(out io.Writer) {
 		isAndroid := false
 		isMSIE := false
 
-		browsersArr := reflect.ValueOf(user).Elem()
-
-		browsers := browsersArr.Field(0).Interface().([]string)
+		browsers := user.Browsers
 
 		for _, browser := range browsers {
 			tempAndr := strings.Split(browser, "Android")
@@ -81,11 +216,11 @@ func FastSearch(out io.Writer) {
 			return
 		}
 
-		emailRaw := browsersArr.Field(1).Interface().(string)
-		nameRaw := browsersArr.Field(2).Interface().(string)
+		emailRaw := user.Email
+		name := user.Name
 
-		email := r.ReplaceAllString(emailRaw, " [at] ")
-		fmt.Fprintf(out, "[%d] %s <%s>\n", index, nameRaw, email)
+		email := strings.Replace(emailRaw, "@", " [at] ", 1)
+		fmt.Fprintf(out, "[%d] %s <%s>\n", index, name, email)
 	}
 
 	i := 0

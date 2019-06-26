@@ -65,8 +65,19 @@ func SearchServer(rw http.ResponseWriter, r *http.Request) {
 			}
 			return
 		}
+	} else {
+		field = "Name"
 	}
 
+	query := r.FormValue("query")
+
+	rw.WriteHeader(http.StatusOK)
+	switch query {
+	case "Rose":
+		io.WriteString(rw, `[{"id": 9, "name": "Rose Carney", "age": 36, "about": "many words", "gender": "female"}, {"id": 13, "name": "Rose Carney", "age": 36, "about": "so on", "gender": "female"}]`)
+	case "Wolf":
+		io.WriteString(rw, `[{"id": 2, "name": "Boyd Wolf", "age": 22, "about": "few words", "gender": "male"}, {"id": 3, "name": "Boyd Wolf", "age": 22, "about": "silence", "gender": "male"}]`)
+	}
 }
 
 func TimeoutServer(rw http.ResponseWriter, r *http.Request) {
@@ -77,11 +88,17 @@ func FatalErrorServer(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusInternalServerError)
 }
 
-func ErrorJsonServer(rw http.ResponseWriter, r *http.Request) {
+func WrongErrorJsonServer(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusBadRequest)
 	io.WriteString(rw, `{"error": ErrorBadOrderField}`)
 }
 
+func WrongResultJsonServer(rw http.ResponseWriter, r *http.Request) {
+	rw.WriteHeader(http.StatusOK)
+	io.WriteString(rw, `{"error": ErrorBadOrderField}`)
+}
+
+// Tests
 func TestLimit(t *testing.T) {
 	cases := []TestRequestLimit{
 		TestRequestLimit{
@@ -323,7 +340,7 @@ func TestErrorJson(t *testing.T) {
 		},
 	}
 
-	ts := httptest.NewServer(http.HandlerFunc(ErrorJsonServer))
+	ts := httptest.NewServer(http.HandlerFunc(WrongErrorJsonServer))
 
 	for _, item := range cases {
 		srv := &SearchClient{
@@ -338,6 +355,81 @@ func TestErrorJson(t *testing.T) {
 
 		if item.IsError && !strings.Contains(err.Error(), item.Err) {
 			t.Errorf("Expecting [%v], got [%v]", item.Err, err)
+		}
+	}
+}
+
+func TestResultJson(t *testing.T) {
+	cases := []TestRequest{
+		TestRequest{
+			Request: SearchRequest{
+				Limit:      10,
+				Offset:     0,
+				Query:      "Wolf",
+				OrderField: "Id",
+				OrderBy:    OrderByAsIs,
+			},
+			Err:     "cant unpack result json",
+			IsError: true,
+		},
+	}
+
+	ts := httptest.NewServer(http.HandlerFunc(WrongResultJsonServer))
+
+	for _, item := range cases {
+		srv := &SearchClient{
+			AccessToken: securityToken,
+			URL:         ts.URL,
+		}
+		_, err := srv.FindUsers(item.Request)
+
+		if err == nil {
+			t.Errorf("Expecting [%v], got nil", item.Err)
+		}
+
+		if item.IsError && !strings.Contains(err.Error(), item.Err) {
+			t.Errorf("Expecting [%v], got [%v]", item.Err, err)
+		}
+	}
+}
+
+func TestResult(t *testing.T) {
+	cases := []TestRequest{
+		TestRequest{
+			Request: SearchRequest{
+				Limit:      2,
+				Offset:     0,
+				Query:      "Wolf",
+				OrderField: "Id",
+				OrderBy:    OrderByAsIs,
+			},
+			Err:     "",
+			IsError: false,
+		},
+		TestRequest{
+			Request: SearchRequest{
+				Limit:      1,
+				Offset:     0,
+				Query:      "Rose",
+				OrderField: "Id",
+				OrderBy:    OrderByAsIs,
+			},
+			Err:     "",
+			IsError: false,
+		},
+	}
+
+	ts := httptest.NewServer(http.HandlerFunc(SearchServer))
+
+	for _, item := range cases {
+		srv := &SearchClient{
+			AccessToken: securityToken,
+			URL:         ts.URL,
+		}
+		_, err := srv.FindUsers(item.Request)
+
+		if err != nil {
+			t.Errorf("Expecting nil, got [%v]", err.Error())
 		}
 	}
 }

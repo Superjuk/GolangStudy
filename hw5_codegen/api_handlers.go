@@ -1,6 +1,7 @@
 package main
 
 import (
+	// "fmt"
 	//"context"
 	"errors"
 	"net/http"
@@ -22,7 +23,9 @@ func (h *MyApi) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (h *MyApi) handlerProfile(w http.ResponseWriter, r *http.Request) {
 	// заполнение структуры params
+	params := r.URL.Query()
 	// валидирование параметров
+
 	//res, err := h.DoSomeJob(ctx, params)
 	// прочие обработки
 }

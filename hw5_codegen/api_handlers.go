@@ -1,13 +1,33 @@
 package main
 
 import (
-	// "fmt"
+	"context"
+	//"fmt"
 	//"context"
 	"errors"
 	"net/http"
+	"net/url"
 )
 
-//type MyApi struct{}
+func fillProfileParams(query url.Values) (out *ProfileParams) {
+	out = &ProfileParams{}
+	out.Login = query.Get("login")
+	return out
+}
+
+func validateProfileParams(in *ProfileParams) (out *ProfileParams, err error) {
+	out = in
+	err = nil
+	//required
+	if in.Login == "" {
+		err = errors.New("login must not me empty")
+	}
+	return out, err
+}
+
+func validateCreateParams() {
+
+}
 
 func (h *MyApi) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {
@@ -23,16 +43,32 @@ func (h *MyApi) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (h *MyApi) handlerProfile(w http.ResponseWriter, r *http.Request) {
 	// заполнение структуры params
-	params := r.URL.Query()
+	raw := fillProfileParams(r.URL.Query())
 	// валидирование параметров
-
-	//res, err := h.DoSomeJob(ctx, params)
+	params, err := validateProfileParams(raw)
+	if err != nil {
+		/* исправить вывод в соответствии с main_test.go */
+		w.Write([]byte(err.Error()))
+		return
+	}
+	ctx := context.Background()
+	res, err := h.Profile(ctx, *params)
 	// прочие обработки
+	/* вывод должен быть в json */
+	result := CR{
+		"error": "",
+		"response": CR{
+			"id":        res.ID,
+			"login":     res.Login,
+			"full_name": res.FullName,
+			"status":    res.Status,
+		},
+	}
 }
 
 func (h *MyApi) handlerCreate(w http.ResponseWriter, r *http.Request) {
 	// заполнение структуры params
 	// валидирование параметров
-	//res, err := h.DoSomeJob(ctx, params)
+	//res, err := h.Create(ctx, params)
 	// прочие обработки
 }

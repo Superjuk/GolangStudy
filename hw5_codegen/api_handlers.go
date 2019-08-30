@@ -4,6 +4,7 @@ import (
 	"context"
 	//"fmt"
 	//"context"
+	//"encoding/json"
 	"errors"
 	"net/http"
 	"net/url"
@@ -55,15 +56,13 @@ func (h *MyApi) handlerProfile(w http.ResponseWriter, r *http.Request) {
 	res, err := h.Profile(ctx, *params)
 	// прочие обработки
 	/* вывод должен быть в json */
-	result := CR{
-		"error": "",
-		"response": CR{
-			"id":        res.ID,
-			"login":     res.Login,
-			"full_name": res.FullName,
-			"status":    res.Status,
-		},
-	}
+	result := `{"error": "",
+				"response": {
+					"id":        res.ID,
+					"login":     res.Login,
+					"full_name": res.FullName,
+					"status":    res.Status,
+		},}`
 }
 
 func (h *MyApi) handlerCreate(w http.ResponseWriter, r *http.Request) {

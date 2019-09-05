@@ -8,6 +8,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"strconv"
 )
 
 func fillProfileParams(query url.Values) (out *ProfileParams) {
@@ -54,15 +55,20 @@ func (h *MyApi) handlerProfile(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx := context.Background()
 	res, err := h.Profile(ctx, *params)
+	if err != nil {
+		/* исправить вывод в соответствии с main_test.go */
+		w.Write([]byte(err.Error()))
+		return
+	}
 	// прочие обработки
 	/* вывод должен быть в json */
-	result := `{"error": "",
-				"response": {
-					"id":        res.ID,
-					"login":     res.Login,
-					"full_name": res.FullName,
-					"status":    res.Status,
-		},}`
+	result := `{"error": "", "response": {
+		"id": ` + strconv.FormatUint(res.ID, 10) + `,
+		"login": "` + res.Login + `",
+		"full_name": "` + res.FullName + `",
+		"status": ` + strconv.Itoa(res.Status) + `}}`
+
+	w.Write([]byte(result))
 }
 
 func (h *MyApi) handlerCreate(w http.ResponseWriter, r *http.Request) {

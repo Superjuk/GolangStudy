@@ -41,9 +41,34 @@ func fillCreateParams(query url.Values) (out *CreateParams) {
 
 /*in must be slice of strings or struct of strings*/
 func validateCreateParams(in *CreateParams) (out *CreateParams, err error) {
-	//required
-	if in.Login == "" {
+	out = in
+	err = nil
+	//! required
+	if out.Login == "" {
 		err = errors.New("login must not me empty")
+	}
+	//! min = 10
+	if len(out.Login) < 10 {
+		err = errors.New("login len must be >= 10")
+	}
+	//! default=user
+	if out.Status == "" {
+		out.Status = "user"
+	}
+	//! enum=user|moderator|admin
+	switch out.Status {
+	case "user", "moderator", "admin":
+		break
+	default:
+		err = errors.New("status must be one of [user, moderator, admin]")
+	}
+	//! min = 0
+	if out.Age < 0 {
+		err = errors.New("age must be >= 0")
+	}
+	//! max = 128
+	if out.Age > 128 {
+		err = errors.New("age must be <= 128")
 	}
 	return out, err
 }
@@ -108,10 +133,7 @@ func (h *MyApi) handlerCreate(w http.ResponseWriter, r *http.Request) {
 	// прочие обработки
 	/* вывод должен быть в json */
 	result := `{"error": "", "response": {
-		"id": ` + strconv.FormatUint(res.ID, 10) + `,
-		"login": "` + res.Login + `",
-		"full_name": "` + res.FullName + `",
-		"status": ` + strconv.Itoa(res.Status) + `}}`
+		"id": ` + strconv.FormatUint(res.ID, 10) + `}}`
 
 	w.Write([]byte(result))
 }

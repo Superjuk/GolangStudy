@@ -11,7 +11,9 @@ import (
 func sendResponse(w http.ResponseWriter, json *string, err *ApiError) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 
-	if err != nil {
+	emptyErr := ApiError{}
+
+	if err != nil && *err != emptyErr {
 		w.WriteHeader(err.HTTPStatus)
 		w.Write([]byte(err.Error()))
 		return
@@ -130,22 +132,22 @@ func (h *MyApi) handlerProfile(w http.ResponseWriter, r *http.Request) {
 		"full_name": "` + res.FullName + `",
 		"status": ` + strconv.Itoa(res.Status) + `}}`
 
-	sendResponse(&w, result, nil)
+	sendResponse(w, &result, nil)
 }
 
 func (h *MyApi) handlerCreate(w http.ResponseWriter, r *http.Request) {
 	// заполнение структуры params
 	raw := h.fillCreateParams(r.URL.Query())
 	// валидирование параметров
-	params, err := h.validateCreateParams(raw)
-	if err != nil {
-		sendResponse(w, nil, err)
+	params, errVal := h.validateCreateParams(raw)
+	if &errVal != nil {
+		sendResponse(w, nil, &errVal)
 		return
 	}
 	ctx := context.Background()
 	res, err := h.Create(ctx, *params)
-	if err != nil {
-		sendResponse(w, nil, err)
+	if &err != nil {
+		sendResponse(w, nil, &ApiError{http.StatusNotFound, err})
 		return
 	}
 	// прочие обработки
@@ -153,7 +155,7 @@ func (h *MyApi) handlerCreate(w http.ResponseWriter, r *http.Request) {
 	result := `{"error": "", "response": {
 		"id": ` + strconv.FormatUint(res.ID, 10) + `}}`
 
-	sendResponse(&w, result, nil)
+	sendResponse(w, &result, nil)
 }
 
 /*OtherApi*/
@@ -201,7 +203,7 @@ func (o *OtherApi) validateCreateParams(in *OtherCreateParams) (out *OtherCreate
 		return out, err
 	}
 
-	err = nil
+	err = ApiError{}
 	return out, err
 }
 
@@ -219,16 +221,15 @@ func (o *OtherApi) handlerCreate(w http.ResponseWriter, r *http.Request) {
 	// заполнение структуры params
 	raw := o.fillCreateParams(r.URL.Query())
 	// валидирование параметров
-	emptyErr := ApiError{}
-	params, err := o.validateCreateParams(raw)
-	if err != emptyErr {
-		sendResponse(w, nil, err)
+	params, errVal := o.validateCreateParams(raw)
+	if &errVal != nil {
+		sendResponse(w, nil, &errVal)
 		return
 	}
 	ctx := context.Background()
 	res, err := o.Create(ctx, *params)
-	if err != emptyErr {
-		sendResponse(w, nil, err)
+	if &err != nil {
+		sendResponse(w, nil, &ApiError{http.StatusNotFound, err})
 		return
 	}
 	// прочие обработки
@@ -238,5 +239,5 @@ func (o *OtherApi) handlerCreate(w http.ResponseWriter, r *http.Request) {
 		"full_name": "` + res.FullName + `",
 		"level": ` + strconv.Itoa(res.Level) + `}}`
 
-	sendResponse(&w, result, nil)
+	sendResponse(w, &result, nil)
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -14,6 +15,7 @@ func sendResponse(w http.ResponseWriter, json *string, err *ApiError) {
 	emptyErr := ApiError{}
 
 	if err != nil && *err != emptyErr {
+		fmt.Println(err.HTTPStatus)
 		w.WriteHeader(err.HTTPStatus)
 		w.Write([]byte(err.Error()))
 		return
@@ -26,18 +28,16 @@ func sendResponse(w http.ResponseWriter, json *string, err *ApiError) {
 }
 
 /*MyApi*/
-/*out must be slice of strings or struct of strings*/
 func (h *MyApi) fillProfileParams(query url.Values) (out *ProfileParams) {
 	out = &ProfileParams{}
 	out.Login = query.Get("login")
 	return out
 }
 
-/*in must be slice of strings or struct of strings*/
 func (h *MyApi) validateProfileParams(in *ProfileParams) (out *ProfileParams, err ApiError) {
 	out = in
 	//required
-	if in.Login == "" {
+	if out.Login == "" {
 		err = ApiError{http.StatusBadRequest, errors.New("login must not be empty")}
 		return out, err
 	}
@@ -46,7 +46,6 @@ func (h *MyApi) validateProfileParams(in *ProfileParams) (out *ProfileParams, er
 	return out, err
 }
 
-/*out must be slice of strings or struct of strings*/
 func (h *MyApi) fillCreateParams(query url.Values) (out *CreateParams) {
 	out = &CreateParams{}
 	out.Login = query.Get("login")
@@ -56,7 +55,6 @@ func (h *MyApi) fillCreateParams(query url.Values) (out *CreateParams) {
 	return out
 }
 
-/*in must be slice of strings or struct of strings*/
 func (h *MyApi) validateCreateParams(in *CreateParams) (out *CreateParams, err ApiError) {
 	out = in
 	//! required
@@ -110,18 +108,18 @@ func (h *MyApi) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *MyApi) handlerProfile(w http.ResponseWriter, r *http.Request) {
+	emptyErr := ApiError{}
 	// заполнение структуры params
 	raw := h.fillProfileParams(r.URL.Query())
 	// валидирование параметров
-	//emptyErr := ApiError{}
 	params, errVal := h.validateProfileParams(raw)
-	if &errVal != nil {
+	if errVal != emptyErr {
 		sendResponse(w, nil, &errVal)
 		return
 	}
 	ctx := context.Background()
 	res, err := h.Profile(ctx, *params)
-	if &err != nil {
+	if err != nil {
 		sendResponse(w, nil, &ApiError{http.StatusNotFound, err})
 		return
 	}
@@ -136,17 +134,19 @@ func (h *MyApi) handlerProfile(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *MyApi) handlerCreate(w http.ResponseWriter, r *http.Request) {
+	emptyErr := ApiError{}
 	// заполнение структуры params
 	raw := h.fillCreateParams(r.URL.Query())
 	// валидирование параметров
 	params, errVal := h.validateCreateParams(raw)
-	if &errVal != nil {
+	if errVal != emptyErr {
 		sendResponse(w, nil, &errVal)
 		return
 	}
 	ctx := context.Background()
 	res, err := h.Create(ctx, *params)
-	if &err != nil {
+	if err != nil {
+		//tempErr :=
 		sendResponse(w, nil, &ApiError{http.StatusNotFound, err})
 		return
 	}
@@ -228,7 +228,7 @@ func (o *OtherApi) handlerCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx := context.Background()
 	res, err := o.Create(ctx, *params)
-	if &err != nil {
+	if err != nil {
 		sendResponse(w, nil, &ApiError{http.StatusNotFound, err})
 		return
 	}

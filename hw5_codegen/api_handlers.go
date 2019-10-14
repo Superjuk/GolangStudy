@@ -7,7 +7,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	//"strconv"
+	"strconv"
 )
 
 type ResponseErr struct {
@@ -51,7 +51,7 @@ func (h *MyApi) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/user/profile":
 		h.handlerProfile(w, r)
 	case "/user/create":
-		//		h.handlerCreate(w, r)
+		h.handlerCreate(w, r)
 	default:
 		//		h.handlerUnknown(w, r)
 	}
@@ -62,6 +62,7 @@ func (h *MyApi) handlerProfile(w http.ResponseWriter, r *http.Request) {
 	// проверка метода
 	if r.Method == "GET" {
 		sendResponse(w, &ApiError{http.StatusNotAcceptable, fmt.Errorf("bad method")}, nil)
+		return
 	}
 
 	// валидирование параметров
@@ -84,11 +85,6 @@ func (h *MyApi) handlerProfile(w http.ResponseWriter, r *http.Request) {
 
 	// // прочие обработки
 	//! \todo обработать context
-	// result := `{"error": "", "response": {
-	// 	"id": ` + strconv.FormatUint(res.ID, 10) + `,
-	// 	"login": "` + res.Login + `",
-	// 	"full_name": "` + res.FullName + `",
-	// 	"status": ` + strconv.Itoa(res.Status) + `}}`
 
 	sendResponse(w, nil, res)
 }
@@ -108,84 +104,99 @@ func (h *MyApi) validateProfileParams(query url.Values) (*ProfileParams, *ApiErr
 	return out, nil
 }
 
-// //! /user/create
-// func (h *MyApi) handlerCreate(w http.ResponseWriter, r *http.Request) {
-// 	emptyErr := ApiError{}
-// 	// заполнение структуры params
-// 	raw := h.fillCreateParams(r.URL.Query())
-// 	// валидирование параметров
-// 	params, errVal := h.validateCreateParams(raw)
-// 	if errVal != emptyErr {
-// 		sendResponse(w, nil, &errVal)
-// 		return
-// 	}
-// 	ctx := context.Background()
-// 	res, err := h.Create(ctx, *params)
-// 	if err != nil {
-// 		//tempErr :=
-// 		sendResponse(w, nil, &ApiError{http.StatusNotFound, err})
-// 		return
-// 	}
-// 	// прочие обработки
-// 	// \todo json marshaler and unmarshaler
-// 	/* вывод должен быть в json */
-// 	result := `{"error": "", "response": {
-// 		"id": ` + strconv.FormatUint(res.ID, 10) + `}}`
+//! /user/create
+func (h *MyApi) handlerCreate(w http.ResponseWriter, r *http.Request) {
+	// проверка метода
+	if r.Method == "GET" {
+		sendResponse(w, &ApiError{http.StatusNotAcceptable, fmt.Errorf("bad method")}, nil)
+		return
+	}
 
-// 	sendResponse(w, &result, nil)
-// }
+	// валидирование параметров
+	params, errVal := h.validateCreateParams(r.URL.Query())
+	if errVal != nil {
+		sendResponse(w, errVal, nil)
+		return
+	}
 
-// func (h *MyApi) fillCreateParams(query url.Values) (out *CreateParams) {
-// 	out = &CreateParams{}
-// 	out.Login = query.Get("login")
-// 	out.Name = query.Get("full_name")
-// 	out.Status = query.Get("status")
-// 	out.Age, _ /*errage*/ = strconv.Atoi(query.Get("age"))
-// 	// if err_age != nil {
-// 	// 	err = ApiError{http.StatusBadRequest, errors.New("age must be int")}
-// 	// 	return out
-// 	// }
-// 	return out
-// }
+	ctx := context.Background()
+	res, err := h.Create(ctx, *params)
+	if err != nil {
+		if ae, ok := err.(*ApiError); ok {
+			sendResponse(w, ae, nil)
+		} else {
+			sendResponse(w, &ApiError{http.StatusInternalServerError, err}, nil)
+		}
+		return
+	}
 
-// func (h *MyApi) validateCreateParams(in *CreateParams) (out *CreateParams, err ApiError) {
-// 	out = in
-// 	//! required
-// 	if out.Login == "" {
-// 		err = ApiError{http.StatusBadRequest, errors.New("login must not be empty")}
-// 		return out, err
-// 	}
-// 	//! min = 10
-// 	if len(out.Login) < 10 {
-// 		err = ApiError{http.StatusBadRequest, errors.New("login len must be >= 10")}
-// 		return out, err
-// 	}
-// 	//! default=user
-// 	if out.Status == "" {
-// 		out.Status = "user"
-// 	}
-// 	//! enum=user|moderator|admin
-// 	switch out.Status {
-// 	case "user", "moderator", "admin":
-// 		break
-// 	default:
-// 		err = ApiError{http.StatusBadRequest, errors.New("status must be one of [user, moderator, admin]")}
-// 		return out, err
-// 	}
-// 	//! min = 0
-// 	if out.Age < 0 {
-// 		err = ApiError{http.StatusBadRequest, errors.New("age must be >= 0")}
-// 		return out, err
-// 	}
-// 	//! max = 128
-// 	if out.Age > 128 {
-// 		err = ApiError{http.StatusBadRequest, errors.New("age must be <= 128")}
-// 		return out, err
-// 	}
+	// // прочие обработки
+	//! \todo обработать context
 
-// 	err = ApiError{}
-// 	return out, err
-// }
+	sendResponse(w, nil, res)
+}
+
+func (h *MyApi) validateCreateParams(query url.Values) (*CreateParams, *ApiError) {
+	out := &CreateParams{}
+
+	//Login
+	out.Login = query.Get("login")
+	//required
+	if out.Login == "" {
+		return nil, &ApiError{
+			http.StatusBadRequest,
+			fmt.Errorf("login must be not empty")}
+	}
+	//min length
+	if len(out.Login) < 10 {
+		return nil, &ApiError{
+			http.StatusBadRequest,
+			fmt.Errorf("login len must be >= 10")}
+	}
+
+	//Name
+	out.Name = query.Get("full_name")
+
+	//Status
+	out.Status = query.Get("status")
+	//default
+	if out.Status == "" {
+		out.Status = "user"
+	}
+	//enum
+	switch out.Status {
+	case "user", "moderator", "admin":
+		break
+	default:
+		return nil, &ApiError{
+			http.StatusBadRequest,
+			fmt.Errorf("status must be one of [user, moderator, admin]")}
+	}
+
+	//Age
+	var errAge error
+	out.Age, errAge = strconv.Atoi(query.Get("age"))
+	fmt.Println(out.Age)
+	if errAge != nil {
+		return nil, &ApiError{
+			http.StatusBadRequest,
+			fmt.Errorf("age must be int")}
+	}
+	//min
+	if out.Age < 0 {
+		return nil, &ApiError{
+			http.StatusBadRequest,
+			fmt.Errorf("age must be >= 0")}
+	}
+	//max
+	if out.Age > 128 {
+		return nil, &ApiError{
+			http.StatusBadRequest,
+			fmt.Errorf("age must be <= 128")}
+	}
+
+	return out, nil
+}
 
 // //! unknonw URL path
 // func (h *MyApi) handlerUnknown(w http.ResponseWriter, r *http.Request) {

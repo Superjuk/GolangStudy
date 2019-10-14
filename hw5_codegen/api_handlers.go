@@ -1,7 +1,7 @@
 package main
 
 import (
-	//"context"
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -22,32 +22,27 @@ type ResponseOk struct {
 func sendResponse(w http.ResponseWriter, err *ApiError, response interface{}) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 
-	resp := ResponseOk{}
 	header := http.StatusOK
 
+	send := func(resp interface{}) {
+		jsonStr, _ := json.Marshal(resp)
+		fmt.Printf("%s\n", jsonStr)
+
+		w.WriteHeader(header)
+		w.Write(jsonStr)
+	}
+
 	if err != nil {
-		resp.Error = err.Err.Error()
+		resp := ResponseErr{err.Err.Error()}
 		header = err.HTTPStatus
+		send(resp)
 	} else if response != nil {
+		resp := ResponseOk{}
 		resp.Data = response
+		send(resp)
 	} else {
 		log.Fatalln("Err and response equal nil. This is must not be.")
 	}
-
-	jsonStr, _ := json.Marshal(resp)
-	fmt.Printf("%s\n", jsonStr)
-
-	w.WriteHeader(header)
-	// if err != nil {
-	// 	w.WriteHeader(err.HTTPStatus)
-	// 	w.Write([]byte(err.Error()))
-	// 	return
-	// }
-
-	// if json != nil {
-	// 	w.WriteHeader(http.StatusOK)
-	// 	w.Write([]byte(*json))
-	// }
 }
 
 /*MyApi*/
@@ -66,44 +61,48 @@ func (h *MyApi) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (h *MyApi) handlerProfile(w http.ResponseWriter, r *http.Request) {
 	// проверка метода
 	if r.Method == "GET" {
-		sendResponse(w /*&ApiError{http.StatusNotAcceptable, fmt.Errorf("bad method")}, &NewUser{43}*/, nil, nil)
+		sendResponse(w, &ApiError{http.StatusNotAcceptable, fmt.Errorf("bad method")}, nil)
 	}
-	// // заполнение структуры params
-	// raw := h.fillProfileParams(r.URL.Query())
-	// // валидирование параметров
-	// params, errVal := h.validateProfileParams(raw)
-	// if errVal != nil {
-	// 	sendResponse(w, nil, &errVal)
-	// 	return
-	// }
-	// ctx := context.Background()
-	// res, err := h.Profile(ctx, *params)
-	// if err != nil {
-	// 	sendResponse(w, nil, &ApiError{http.StatusNotFound, err})
-	// 	return
-	// }
+
+	// валидирование параметров
+	params, errVal := h.validateProfileParams(r.URL.Query())
+	if errVal != nil {
+		sendResponse(w, errVal, nil)
+		return
+	}
+
+	ctx := context.Background()
+	res, err := h.Profile(ctx, *params)
+	if err != nil {
+		if ae, ok := err.(*ApiError); ok {
+			sendResponse(w, ae, nil)
+		} else {
+			sendResponse(w, &ApiError{http.StatusInternalServerError, err}, nil)
+		}
+		return
+	}
+
 	// // прочие обработки
+	//! \todo обработать context
 	// result := `{"error": "", "response": {
 	// 	"id": ` + strconv.FormatUint(res.ID, 10) + `,
 	// 	"login": "` + res.Login + `",
 	// 	"full_name": "` + res.FullName + `",
 	// 	"status": ` + strconv.Itoa(res.Status) + `}}`
 
-	// sendResponse(w, &result, nil)
+	sendResponse(w, nil, res)
 }
 
-func (h *MyApi) fillProfileParams(query url.Values) (out *ProfileParams) {
-	out = &ProfileParams{}
+func (h *MyApi) validateProfileParams(query url.Values) (*ProfileParams, *ApiError) {
+	out := &ProfileParams{}
+
+	//Login
 	out.Login = query.Get("login")
-	return out
-}
-
-func (h *MyApi) validateProfileParams(in *ProfileParams) (out *ProfileParams, err *ApiError) {
-	out = in
 	//required
 	if out.Login == "" {
-		err = &ApiError{http.StatusBadRequest, fmt.Errorf("login must not be empty")}
-		return out, err
+		return nil, &ApiError{
+			http.StatusBadRequest,
+			fmt.Errorf("login must be not empty")}
 	}
 
 	return out, nil

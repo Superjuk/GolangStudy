@@ -59,12 +59,6 @@ func (h *MyApi) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 //! /user/profile
 func (h *MyApi) handlerProfile(w http.ResponseWriter, r *http.Request) {
-	// проверка метода
-	if r.Method == "GET" {
-		sendResponse(w, &ApiError{http.StatusNotAcceptable, fmt.Errorf("bad method")}, nil)
-		return
-	}
-
 	// валидирование параметров
 	params, errVal := h.validateProfileParams(r.URL.Query())
 	if errVal != nil {
@@ -109,6 +103,12 @@ func (h *MyApi) handlerCreate(w http.ResponseWriter, r *http.Request) {
 	// проверка метода
 	if r.Method == "GET" {
 		sendResponse(w, &ApiError{http.StatusNotAcceptable, fmt.Errorf("bad method")}, nil)
+		return
+	}
+
+	// проверка авторизации
+	if r.Header.Get("X-Auth") != "100500" {
+		sendResponse(w, &ApiError{http.StatusForbidden, fmt.Errorf("unauthorized")}, nil)
 		return
 	}
 
@@ -216,6 +216,12 @@ func (h *OtherApi) handlerCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// проверка авторизации
+	if r.Header.Get("X-Auth") != "100500" {
+		sendResponse(w, &ApiError{http.StatusForbidden, fmt.Errorf("unauthorized")}, nil)
+		return
+	}
+
 	// валидирование параметров
 	params, errVal := h.validateCreateParams(r.URL.Query())
 	if errVal != nil {
@@ -240,52 +246,6 @@ func (h *OtherApi) handlerCreate(w http.ResponseWriter, r *http.Request) {
 	sendResponse(w, nil, res)
 }
 
-// func (o *OtherApi) fillCreateParams(query url.Values) (out *OtherCreateParams) {
-// 	out = &OtherCreateParams{}
-
-//
-// 	out.Level, _ = strconv.Atoi(query.Get("level"))
-// 	return out
-// }
-
-// func (o *OtherApi) validateCreateParams(in *OtherCreateParams) (out *OtherCreateParams, err ApiError) {
-// 	out = in
-// 	//! required
-// 	if out.Username == "" {
-// 		err = ApiError{http.StatusBadRequest, errors.New("username must not be empty")}
-// 		return out, err
-// 	}
-// 	//! min = 3
-// 	if len(out.Username) < 3 {
-// 		err = ApiError{http.StatusBadRequest, errors.New("username len must be >= 3")}
-// 		return out, err
-// 	}
-// 	//! default=warrior
-// 	if out.Class == "" {
-// 		out.Class = "warrior"
-// 	}
-// 	//! enum=warrior|sorcerer|rouge
-// 	switch out.Class {
-// 	case "warrior", "sorcerer", "rouge":
-// 		break
-// 	default:
-// 		err = ApiError{http.StatusBadRequest, errors.New("class must be one of [warrior, sorcerer, rouge]")}
-// 		return out, err
-// 	}
-// 	//! min = 1
-// 	if out.Level < 1 {
-// 		err = ApiError{http.StatusBadRequest, errors.New("level must be >= 1")}
-// 		return out, err
-// 	}
-// 	//! max = 50
-// 	if out.Level > 50 {
-// 		err = ApiError{http.StatusBadRequest, errors.New("level must be <= 50")}
-// 		return out, err
-// 	}
-
-// 	err = ApiError{}
-// 	return out, err
-// }
 func (h *OtherApi) validateCreateParams(query url.Values) (*OtherCreateParams, *ApiError) {
 	out := &OtherCreateParams{}
 

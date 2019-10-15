@@ -53,7 +53,7 @@ func (h *MyApi) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/user/create":
 		h.handlerCreate(w, r)
 	default:
-		//		h.handlerUnknown(w, r)
+		sendResponse(w, &ApiError{http.StatusNotFound, fmt.Errorf("unknown method")}, nil)
 	}
 }
 
@@ -198,53 +198,52 @@ func (h *MyApi) validateCreateParams(query url.Values) (*CreateParams, *ApiError
 	return out, nil
 }
 
-// //! unknonw URL path
-// func (h *MyApi) handlerUnknown(w http.ResponseWriter, r *http.Request) {
-
-// }
-
 // /*OtherApi*/
-// func (o *OtherApi) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-// 	switch r.URL.Path {
-// 	case "/user/create":
-// 		o.handlerCreate(w, r)
-// 	default:
-// 		ae := ApiError{http.StatusNotFound, errors.New("Not found")}
-// 		ae.Error()
-// 	}
-// }
+func (h *OtherApi) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	switch r.URL.Path {
+	case "/user/create":
+		h.handlerCreate(w, r)
+	default:
+		sendResponse(w, &ApiError{http.StatusNotFound, fmt.Errorf("unknown method")}, nil)
+	}
+}
 
-// //! /user/create
-// func (o *OtherApi) handlerCreate(w http.ResponseWriter, r *http.Request) {
-// 	// заполнение структуры params
-// 	raw := o.fillCreateParams(r.URL.Query())
-// 	// валидирование параметров
-// 	params, errVal := o.validateCreateParams(raw)
-// 	if &errVal != nil {
-// 		sendResponse(w, nil, &errVal)
-// 		return
-// 	}
-// 	ctx := context.Background()
-// 	res, err := o.Create(ctx, *params)
-// 	if err != nil {
-// 		sendResponse(w, nil, &ApiError{http.StatusNotFound, err})
-// 		return
-// 	}
-// 	// прочие обработки
-// 	result := `{"error": "", "response": {
-// 		"id": ` + strconv.FormatUint(res.ID, 10) + `,
-// 		"login": "` + res.Login + `",
-// 		"full_name": "` + res.FullName + `",
-// 		"level": ` + strconv.Itoa(res.Level) + `}}`
+//! /user/create
+func (h *OtherApi) handlerCreate(w http.ResponseWriter, r *http.Request) {
+	// проверка метода
+	if r.Method == "GET" {
+		sendResponse(w, &ApiError{http.StatusNotAcceptable, fmt.Errorf("bad method")}, nil)
+		return
+	}
 
-// 	sendResponse(w, &result, nil)
-// }
+	// валидирование параметров
+	params, errVal := h.validateCreateParams(r.URL.Query())
+	if errVal != nil {
+		sendResponse(w, errVal, nil)
+		return
+	}
+
+	ctx := context.Background()
+	res, err := h.Create(ctx, *params)
+	if err != nil {
+		if ae, ok := err.(*ApiError); ok {
+			sendResponse(w, ae, nil)
+		} else {
+			sendResponse(w, &ApiError{http.StatusInternalServerError, err}, nil)
+		}
+		return
+	}
+
+	// // прочие обработки
+	//! \todo обработать context
+
+	sendResponse(w, nil, res)
+}
 
 // func (o *OtherApi) fillCreateParams(query url.Values) (out *OtherCreateParams) {
 // 	out = &OtherCreateParams{}
-// 	out.Username = query.Get("username")
-// 	out.Name = query.Get("account_name")
-// 	out.Class = query.Get("class")
+
+//
 // 	out.Level, _ = strconv.Atoi(query.Get("level"))
 // 	return out
 // }
@@ -287,3 +286,64 @@ func (h *MyApi) validateCreateParams(query url.Values) (*CreateParams, *ApiError
 // 	err = ApiError{}
 // 	return out, err
 // }
+func (h *OtherApi) validateCreateParams(query url.Values) (*OtherCreateParams, *ApiError) {
+	out := &OtherCreateParams{}
+
+	//Username
+	out.Username = query.Get("username")
+	//required
+	if out.Username == "" {
+		return nil, &ApiError{
+			http.StatusBadRequest,
+			fmt.Errorf("username must be not empty")}
+	}
+	//min length
+	if len(out.Username) < 3 {
+		return nil, &ApiError{
+			http.StatusBadRequest,
+			fmt.Errorf("username len must be >= 3")}
+	}
+
+	//Name
+	out.Name = query.Get("account_name")
+
+	//Class
+	out.Class = query.Get("class")
+	//default
+	if out.Class == "" {
+		out.Class = "warrior"
+	}
+	//enum
+	switch out.Class {
+	case "warrior", "sorcerer", "rouge":
+		break
+	default:
+		return nil, &ApiError{
+			http.StatusBadRequest,
+			fmt.Errorf("status must be one of [warrior, sorcerer, rouge]")}
+	}
+
+	//Level
+	var errLevel error
+	out.Level, errLevel = strconv.Atoi(query.Get("level"))
+	fmt.Println(out.Level)
+	if errLevel != nil {
+		return nil, &ApiError{
+			http.StatusBadRequest,
+			fmt.Errorf("level must be int")}
+	}
+	//min
+	if out.Level < 1 {
+		return nil, &ApiError{
+			http.StatusBadRequest,
+			fmt.Errorf("level must be >= 0")}
+	}
+	//max
+	if out.Level > 50 {
+		return nil, &ApiError{
+			http.StatusBadRequest,
+			fmt.Errorf("level must be <= 50")}
+	}
+
+	return out, nil
+}

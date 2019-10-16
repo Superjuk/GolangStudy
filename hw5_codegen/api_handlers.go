@@ -59,8 +59,18 @@ func (h *MyApi) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 //! /user/profile
 func (h *MyApi) handlerProfile(w http.ResponseWriter, r *http.Request) {
+	var query url.Values
+	if r.Method == http.MethodGet {
+		query = r.URL.Query()
+		fmt.Println("Get:", query)
+	}
+	if r.Method == http.MethodPost {
+		r.ParseForm()
+		query = r.PostForm
+		fmt.Println("Post:", query)
+	}
 	// валидирование параметров
-	params, errVal := h.validateProfileParams(r.URL.Query())
+	params, errVal := h.validateProfileParams(query)
 	if errVal != nil {
 		sendResponse(w, errVal, nil)
 		return

@@ -62,12 +62,10 @@ func (h *MyApi) handlerProfile(w http.ResponseWriter, r *http.Request) {
 	var query url.Values
 	if r.Method == http.MethodGet {
 		query = r.URL.Query()
-		fmt.Println("Get:", query)
 	}
 	if r.Method == http.MethodPost {
 		r.ParseForm()
 		query = r.PostForm
-		fmt.Println("Post:", query)
 	}
 	// валидирование параметров
 	params, errVal := h.validateProfileParams(query)
@@ -79,8 +77,8 @@ func (h *MyApi) handlerProfile(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
 	res, err := h.Profile(ctx, *params)
 	if err != nil {
-		if ae, ok := err.(*ApiError); ok {
-			sendResponse(w, ae, nil)
+		if ae, ok := err.(ApiError); ok {
+			sendResponse(w, &ae, nil)
 		} else {
 			sendResponse(w, &ApiError{http.StatusInternalServerError, err}, nil)
 		}
@@ -111,9 +109,14 @@ func (h *MyApi) validateProfileParams(query url.Values) (*ProfileParams, *ApiErr
 //! /user/create
 func (h *MyApi) handlerCreate(w http.ResponseWriter, r *http.Request) {
 	// проверка метода
-	if r.Method == "GET" {
+	var query url.Values
+	if r.Method == http.MethodGet {
 		sendResponse(w, &ApiError{http.StatusNotAcceptable, fmt.Errorf("bad method")}, nil)
 		return
+	}
+	if r.Method == http.MethodPost {
+		r.ParseForm()
+		query = r.PostForm
 	}
 
 	// проверка авторизации
@@ -123,7 +126,7 @@ func (h *MyApi) handlerCreate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// валидирование параметров
-	params, errVal := h.validateCreateParams(r.URL.Query())
+	params, errVal := h.validateCreateParams(query)
 	if errVal != nil {
 		sendResponse(w, errVal, nil)
 		return
@@ -132,8 +135,8 @@ func (h *MyApi) handlerCreate(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
 	res, err := h.Create(ctx, *params)
 	if err != nil {
-		if ae, ok := err.(*ApiError); ok {
-			sendResponse(w, ae, nil)
+		if ae, ok := err.(ApiError); ok {
+			sendResponse(w, &ae, nil)
 		} else {
 			sendResponse(w, &ApiError{http.StatusInternalServerError, err}, nil)
 		}
@@ -221,9 +224,14 @@ func (h *OtherApi) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 //! /user/create
 func (h *OtherApi) handlerCreate(w http.ResponseWriter, r *http.Request) {
 	// проверка метода
-	if r.Method == "GET" {
+	var query url.Values
+	if r.Method == http.MethodGet {
 		sendResponse(w, &ApiError{http.StatusNotAcceptable, fmt.Errorf("bad method")}, nil)
 		return
+	}
+	if r.Method == http.MethodPost {
+		r.ParseForm()
+		query = r.PostForm
 	}
 
 	// проверка авторизации
@@ -233,7 +241,7 @@ func (h *OtherApi) handlerCreate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// валидирование параметров
-	params, errVal := h.validateCreateParams(r.URL.Query())
+	params, errVal := h.validateCreateParams(query)
 	if errVal != nil {
 		sendResponse(w, errVal, nil)
 		return
@@ -242,8 +250,8 @@ func (h *OtherApi) handlerCreate(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
 	res, err := h.Create(ctx, *params)
 	if err != nil {
-		if ae, ok := err.(*ApiError); ok {
-			sendResponse(w, ae, nil)
+		if ae, ok := err.(ApiError); ok {
+			sendResponse(w, &ae, nil)
 		} else {
 			sendResponse(w, &ApiError{http.StatusInternalServerError, err}, nil)
 		}
@@ -290,7 +298,7 @@ func (h *OtherApi) validateCreateParams(query url.Values) (*OtherCreateParams, *
 	default:
 		return nil, &ApiError{
 			http.StatusBadRequest,
-			fmt.Errorf("status must be one of [warrior, sorcerer, rouge]")}
+			fmt.Errorf("class must be one of [warrior, sorcerer, rouge]")}
 	}
 
 	//Level

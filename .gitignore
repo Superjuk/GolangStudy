@@ -5,6 +5,7 @@
 *.so
 *.dylib
 hw5_codegen/hw5_codegen
+handlers_gen/handlers_gen
 
 # Test binary, built with `go test -c`
 *.test

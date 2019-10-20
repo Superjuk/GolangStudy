@@ -1,14 +1,13 @@
 package main
 
 import (
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io/ioutil"
 	"log"
 	"os"
-
-	//"io/ioutil"
-	"fmt"
 )
 
 // type ResponseOk struct {
@@ -61,6 +60,13 @@ func main() {
 		log.Fatal("ParseFile error: ", err.Error())
 	}
 
+	srcByte, err := ioutil.ReadFile(os.Args[1])
+	if err != nil {
+		fmt.Print(err)
+	}
+	// convert bytes to string
+	src := string(srcByte)
+
 	// out, _ := os.Create(os.Args[2])
 
 	// fmt.Fprintln(out, `package `+apiFile.Name.Name)
@@ -78,6 +84,7 @@ func main() {
 	// fmt.Fprintln(out, responseOk)
 	// fmt.Fprintln(out)
 	// fmt.Fprintln(out, sendResponse)
+	// fmt.Fprintln(out)
 
 	// it work's
 	fmt.Println("Declarations:")
@@ -87,13 +94,14 @@ func main() {
 			if gen.Doc.Text() != "" {
 				fmt.Println("Name:", gen.Name.String())
 				fmt.Println("Doc:", gen.Doc.Text())
-				//fmt.Println("Func:", gen.Type.Func)
 				if gen.Recv.NumFields() > 0 {
 					fmt.Println("Recv:", gen.Recv.List[0].Type)
+					start := gen.Recv.List[0].Type.Pos() - 1
+					end := gen.Recv.List[0].Type.End() - 1
+					fmt.Println("Recv(string):", src[start:end])
 				}
+				fmt.Println("@func@")
 			}
-
-			fmt.Println("@func@")
 		}
 
 		// анализируем структуры
@@ -110,15 +118,15 @@ func main() {
 				}
 				for _, field := range structType.Fields.List {
 					for _, name := range field.Names {
-						fmt.Println(name)
+						fmt.Println("Name:", name)
 					}
 					if field.Tag != nil {
-						fmt.Println(field.Tag.Value)
+						fmt.Println("Description:", field.Tag.Value)
 					}
 
 					fieldType, ok := field.Type.(*ast.Ident)
 					if ok {
-						fmt.Println(fieldType)
+						fmt.Println("Type:", fieldType)
 					}
 				}
 				fmt.Println("@struct@")
@@ -129,8 +137,6 @@ func main() {
 	}
 
 	// all comments
-	/*cmap := ast.NewCommentMap(fset, apigen, apigen.Comments)
-	fmt.Println(cmap)*/
 
 	// filtering
 

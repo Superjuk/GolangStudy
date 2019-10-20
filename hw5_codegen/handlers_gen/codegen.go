@@ -83,7 +83,7 @@ func main() {
 	fmt.Println("Declarations:")
 	for _, decl := range apigen.Decls {
 		// анализируем функции
-		/*if gen, ok := decl.(*ast.FuncDecl); ok {
+		if gen, ok := decl.(*ast.FuncDecl); ok {
 			if gen.Doc.Text() != "" {
 				fmt.Println("Name:", gen.Name.String())
 				fmt.Println("Doc:", gen.Doc.Text())
@@ -93,8 +93,8 @@ func main() {
 				}
 			}
 
-			fmt.Println("")
-		}*/
+			fmt.Println("@func@")
+		}
 
 		// анализируем структуры
 		if gen, ok := decl.(*ast.GenDecl); ok {
@@ -112,14 +112,7 @@ func main() {
 					for _, name := range field.Names {
 						fmt.Println(name)
 					}
-					// if field.Comment != nil {
-					// 	fmt.Println(field.Comment.Text())
-					// }
-					// if field.Doc != nil {
-					// 	fmt.Println(field.Doc.Text())
-					// }
 					if field.Tag != nil {
-						//fmt.Println(field.Tag.Kind.String())
 						fmt.Println(field.Tag.Value)
 					}
 
@@ -128,7 +121,7 @@ func main() {
 						fmt.Println(fieldType)
 					}
 				}
-				fmt.Println("@@")
+				fmt.Println("@struct@")
 			}
 
 			fmt.Println("--")

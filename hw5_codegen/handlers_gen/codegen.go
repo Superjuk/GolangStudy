@@ -50,6 +50,16 @@ const (
 		log.Fatalln("Err and response equal nil. This is must not be.")
 	}
 }`
+
+	serveHttpBegin = `func (h {{*MyApi}}) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	switch r.URL.Path {`
+
+	serveHttpCase = `	case "/user/profile":
+		h.handlerProfile(w, r)`
+
+	serveHttpEnd = `	default:
+		sendResponse(w, &ApiError{http.StatusNotFound, fmt.Errorf("unknown method")}, nil)
+	}`
 )
 
 func main() {
@@ -95,10 +105,9 @@ func main() {
 				fmt.Println("Name:", gen.Name.String())
 				fmt.Println("Doc:", gen.Doc.Text())
 				if gen.Recv.NumFields() > 0 {
-					fmt.Println("Recv:", gen.Recv.List[0].Type)
 					start := gen.Recv.List[0].Type.Pos() - 1
 					end := gen.Recv.List[0].Type.End() - 1
-					fmt.Println("Recv(string):", src[start:end])
+					fmt.Println("Recv:", src[start:end])
 				}
 				fmt.Println("@func@")
 			}

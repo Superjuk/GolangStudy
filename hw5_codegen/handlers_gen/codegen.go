@@ -10,6 +10,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	//"text/scanner"
 )
 
 /*
@@ -284,14 +285,18 @@ func main() {
 				var apivalFields []StructField
 				for _, field := range structType.Fields.List {
 					var apivalField StructField
+					tag := field.Tag
+					if tag != nil {
+						if !strings.HasPrefix(tag.Value, "`"+"apivalidator:") {
+							continue
+						}
+						//var s scanner.Scanner
+						apivalField.Tag = field.Tag.Value
+					}
 					for _, name := range field.Names {
 						apivalField.Name = name.Name
 						break
 					}
-					if field.Tag != nil {
-						apivalField.Tag = field.Tag.Value
-					}
-
 					fieldType, ok := field.Type.(*ast.Ident)
 					if ok {
 						apivalField.Type = fieldType.Name
@@ -299,8 +304,10 @@ func main() {
 					apivalFields = append(apivalFields, apivalField)
 				}
 
-				apival.Fields = apivalFields
-				apivalidators = append(apivalidators, apival)
+				if len(apivalFields) > 0 {
+					apival.Fields = apivalFields
+					apivalidators = append(apivalidators, apival)
+				}
 			}
 		}
 	}

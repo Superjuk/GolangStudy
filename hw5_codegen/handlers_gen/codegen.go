@@ -108,15 +108,73 @@ const (
 	}
 }`
 
-	serveHttpBegin = `func (h {{*MyApi}}) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	//ServeHTTP
+	serveHttpBegin = `func (h {{.structType}}) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {`
 
-	serveHttpCase = `	case "/user/profile":
-		h.handlerProfile(w, r)`
+	serveHttpCase = `	case "{{.apigenUrl}}":
+		h.handler{{.apigenMethod}}(w, r)`
 
 	serveHttpEnd = `	default:
 		sendResponse(w, &ApiError{http.StatusNotFound, fmt.Errorf("unknown method")}, nil)
 	}`
+
+	//handler
+	handlerBegin = `func (h {{.structType}}) handler{{.apigenMethod}}(w http.ResponseWriter, r *http.Request) {
+	var query url.Values`
+
+	handlerMethodGetTrue = `if r.Method == http.MethodGet {
+		query = r.URL.Query()
+	}`
+
+	handlerMethodGetFalse = `if r.Method == http.MethodGet {
+		sendResponse(w, &ApiError{http.StatusNotAcceptable, fmt.Errorf("bad method")}, nil)
+		return
+	}`
+
+	handlerMethodPostTrue = `if r.Method == http.MethodPost {
+		r.ParseForm()
+		query = r.PostForm
+	}`
+
+	handlerMethodPostFalse = `if r.Method == http.MethodPost {
+		sendResponse(w, &ApiError{http.StatusNotAcceptable, fmt.Errorf("bad method")}, nil)
+		return
+	}`
+
+	handlerAuthTrue = `if r.Header.Get("X-Auth") != "100500" {
+		sendResponse(w, &ApiError{http.StatusForbidden, fmt.Errorf("unauthorized")}, nil)
+		return
+	}`
+
+	handlerEnd = `// валидирование параметров
+	params, errVal := h.validate{{.apivalidatorStructType}}(query)
+	if errVal != nil {
+		sendResponse(w, errVal, nil)
+		return
+	}
+
+	ctx := context.Background()
+	res, err := h.{{.apigenMethod}}(ctx, *params)
+	if err != nil {
+		if ae, ok := err.(ApiError); ok {
+			sendResponse(w, &ae, nil)
+		} else {
+			sendResponse(w, &ApiError{http.StatusInternalServerError, err}, nil)
+		}
+		return
+	}
+
+	// // прочие обработки
+	//! \todo обработать context
+
+	sendResponse(w, nil, res)`
+
+	//validate
+	validateStart = `func (h {{.structType}}) validate{{.apivalidatorStructType}}(query url.Values) (*{{.apivalidatorStructType}}, *ApiError) {
+	out := &{{.apivalidatorStructType}}{}`
+
+	validateFieldTypeString = `out.{{.apivalidatorFieldName}} = query.Get("{{.apivalidatorParamname}}")`
 )
 
 func main() {

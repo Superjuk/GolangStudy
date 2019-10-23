@@ -189,7 +189,6 @@ func (h *MyApi) validateCreateParams(query url.Values) (*CreateParams, *ApiError
 	//Age
 	var errAge error
 	out.Age, errAge = strconv.Atoi(query.Get("age"))
-	fmt.Println(out.Age)
 	if errAge != nil {
 		return nil, &ApiError{
 			http.StatusBadRequest,
@@ -304,7 +303,6 @@ func (h *OtherApi) validateOtherCreateParams(query url.Values) (*OtherCreatePara
 	//Level
 	var errLevel error
 	out.Level, errLevel = strconv.Atoi(query.Get("level"))
-	fmt.Println(out.Level)
 	if errLevel != nil {
 		return nil, &ApiError{
 			http.StatusBadRequest,

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -8,6 +9,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"strings"
 )
 
 /*
@@ -54,9 +56,9 @@ type StructField struct {
 }
 
 type ApigenApi struct {
-	url    string
-	auth   bool
-	method string
+	Url    string
+	Auth   bool
+	Method string
 }
 
 //------------------------------------
@@ -211,33 +213,55 @@ func main() {
 	// fmt.Fprintln(out, sendResponse)
 	// fmt.Fprintln(out)
 
-	//var apigens []Apigen
-	//var apivalidators []Apivalidator
+	var apigens []Apigen
+	var apivalidators []Apivalidator
 
-	fmt.Println("Declarations:")
 	for _, decl := range apigen.Decls {
 		// анализируем функции
 		if gen, ok := decl.(*ast.FuncDecl); ok {
 			if gen.Doc.Text() != "" {
-				fmt.Println("FuncDecl.Name:", gen.Name.String())
-				fmt.Println("FuncDecl.Doc:", gen.Doc.Text())
+				var apigenFunc Apigen
+				apigenFunc.Name = gen.Name.String()
+
+				var apgn ApigenApi
+				doc := gen.Doc.Text()
+				if strings.HasPrefix(doc, "apigen:api ") {
+					apigenStr := strings.TrimPrefix(doc, "apigen:api ")
+					err := json.Unmarshal([]byte(apigenStr), &apgn)
+					if err != nil {
+						fmt.Println("Json apigen error:", err.Error())
+						continue
+					}
+					apigenFunc.Api = apgn
+				}
+
 				if gen.Recv.NumFields() > 0 {
 					start := gen.Recv.List[0].Type.Pos() - 1
 					end := gen.Recv.List[0].Type.End() - 1
-					fmt.Println("FuncDecl.Recv(src[:]):", src[start:end])
+					if end > start {
+						apigenFunc.Type = src[start:end]
+					} else {
+						fmt.Println("Type apigen error: start = end")
+						continue
+					}
 				}
+
 				for _, p := range gen.Type.Params.List {
 					for _, in := range p.Names {
 						if in.Name == "in" {
 							start := p.Type.Pos() - 1
 							end := p.Type.End() - 1
-							fmt.Println("FuncDecl.InParam:", src[start:end])
+							if end > start {
+								apigenFunc.InType = src[start:end]
+							} else {
+								fmt.Println("InType apigen error: start = end")
+								continue
+							}
 						}
 					}
 				}
-				//fmt.Println("FuncDecl.Out:", src[st:en])
-				fmt.Println("@func@")
-				fmt.Println("--")
+
+				apigens = append(apigens, apigenFunc)
 			}
 			continue
 		}
@@ -245,36 +269,61 @@ func main() {
 		// анализируем структуры
 		if gen, ok := decl.(*ast.GenDecl); ok {
 			for _, spec := range gen.Specs {
+				var apival Apivalidator
 				specType, ok := spec.(*ast.TypeSpec)
 				if !ok {
 					continue
 				}
-				fmt.Println("GenDecl.specType:", specType.Name.Name)
+				apival.Type = specType.Name.Name
+
 				structType, ok := specType.Type.(*ast.StructType)
 				if !ok {
 					continue
 				}
+
+				var apivalFields []StructField
 				for _, field := range structType.Fields.List {
+					var apivalField StructField
 					for _, name := range field.Names {
-						fmt.Println("GenDecl.structType.Name:", name)
+						apivalField.Name = name.Name
+						break
 					}
 					if field.Tag != nil {
-						fmt.Println("GenDecl.structType.Tag:", field.Tag.Value)
+						apivalField.Tag = field.Tag.Value
 					}
 
 					fieldType, ok := field.Type.(*ast.Ident)
 					if ok {
-						fmt.Println("GenDecl.structType.Type:", fieldType)
+						apivalField.Type = fieldType.Name
 					}
+					apivalFields = append(apivalFields, apivalField)
 				}
-				fmt.Println("@struct@")
-				fmt.Println("--")
+
+				apival.Fields = apivalFields
+				apivalidators = append(apivalidators, apival)
 			}
 		}
 	}
 
-	// all comments
+	// print
+	for _, ag := range apigens {
+		fmt.Println("Name:", ag.Name)
+		fmt.Println("Type:", ag.Type)
+		fmt.Println("InType:", ag.InType)
+		fmt.Println("Url:", ag.Api.Url)
+		fmt.Println("Auth:", ag.Api.Auth)
+		fmt.Println("Method:", ag.Api.Method)
+		fmt.Println("--")
+	}
 
+	for _, av := range apivalidators {
+		fmt.Println("Type:", av.Type)
+		for _, fld := range av.Fields {
+			fmt.Println("Name:", fld.Name, "; Type:", fld.Type)
+			fmt.Println("Tag:", fld.Tag)
+		}
+		fmt.Println("--")
+	}
 	// filtering
 
 	/*API realization*/

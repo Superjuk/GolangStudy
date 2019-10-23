@@ -241,7 +241,7 @@ func (h *OtherApi) handlerCreate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// валидирование параметров
-	params, errVal := h.validateCreateParams(query)
+	params, errVal := h.validateOtherCreateParams(query)
 	if errVal != nil {
 		sendResponse(w, errVal, nil)
 		return
@@ -264,7 +264,7 @@ func (h *OtherApi) handlerCreate(w http.ResponseWriter, r *http.Request) {
 	sendResponse(w, nil, res)
 }
 
-func (h *OtherApi) validateCreateParams(query url.Values) (*OtherCreateParams, *ApiError) {
+func (h *OtherApi) validateOtherCreateParams(query url.Values) (*OtherCreateParams, *ApiError) {
 	out := &OtherCreateParams{}
 
 	//Username

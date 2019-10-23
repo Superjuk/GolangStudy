@@ -10,10 +10,67 @@ import (
 	"os"
 )
 
-// type ResponseOk struct {
-// 	Error string      `json:"error"`
-// 	Data  interface{} `json:"response"`
-// }
+/*
+***original***
+//apivalidator
+type CreateParams struct {
+	Login  string `apivalidator:"required,min=10"`
+	Name   string `apivalidator:"paramname=full_name"`
+	Status string `apivalidator:"enum=user|moderator|admin,default=user"`
+	Age    int    `apivalidator:"min=0,max=128"`
+}
+
+//json
+type User struct {
+	ID       uint64 `json:"id"`
+	Login    string `json:"login"`
+	FullName string `json:"full_name"`
+	Status   int    `json:"status"`
+}
+
+// apigen:api {"url": "/user/create", "auth": true, "method": "POST"}
+func (srv *MyApi) Create(ctx context.Context, in CreateParams) (*NewUser, error)
+------------------------------------------------------------------------------------
+***modified***
+//apivalidator
+type {{GenDecl.specType} | {FuncDecl.InParam}} struct {
+	{{GenDecl.structType.Name}}  {{GenDecl.structType.Type}} {{GenDecl.structType.Tag(`apivalidator:`)}}
+}
+
+//json
+type {{GenDecl.specType}} struct {
+	{{GenDecl.structType.Name}}  {{GenDecl.structType.Type}} {{GenDecl.structType.Tag(`json:`)}}
+}
+
+//apigen
+// {{FuncDecl.Doc}}
+func (srv {{FuncDecl.Recv(src[:])}}) {{FuncDecl.Name}}(ctx context.Context, in {{FuncDecl.InParam}}) (*NewUser, error)
+*/
+
+type StructField struct {
+	Name string
+	Type string
+	Tag  string
+}
+
+type ApigenApi struct {
+	url    string
+	auth   bool
+	method string
+}
+
+//------------------------------------
+type Apigen struct {
+	Type   string
+	Name   string
+	InType string
+	Api    ApigenApi
+}
+
+type Apivalidator struct {
+	Type   string
+	Fields []StructField
+}
 
 const (
 	responseErr = `type ResponseErr struct {
@@ -96,21 +153,35 @@ func main() {
 	// fmt.Fprintln(out, sendResponse)
 	// fmt.Fprintln(out)
 
-	// it work's
+	//var apigens []Apigen
+	//var apivalidators []Apivalidator
+
 	fmt.Println("Declarations:")
 	for _, decl := range apigen.Decls {
 		// анализируем функции
 		if gen, ok := decl.(*ast.FuncDecl); ok {
 			if gen.Doc.Text() != "" {
-				fmt.Println("Name:", gen.Name.String())
-				fmt.Println("Doc:", gen.Doc.Text())
+				fmt.Println("FuncDecl.Name:", gen.Name.String())
+				fmt.Println("FuncDecl.Doc:", gen.Doc.Text())
 				if gen.Recv.NumFields() > 0 {
 					start := gen.Recv.List[0].Type.Pos() - 1
 					end := gen.Recv.List[0].Type.End() - 1
-					fmt.Println("Recv:", src[start:end])
+					fmt.Println("FuncDecl.Recv(src[:]):", src[start:end])
 				}
+				for _, p := range gen.Type.Params.List {
+					for _, in := range p.Names {
+						if in.Name == "in" {
+							start := p.Type.Pos() - 1
+							end := p.Type.End() - 1
+							fmt.Println("FuncDecl.InParam:", src[start:end])
+						}
+					}
+				}
+				//fmt.Println("FuncDecl.Out:", src[st:en])
 				fmt.Println("@func@")
+				fmt.Println("--")
 			}
+			continue
 		}
 
 		// анализируем структуры
@@ -120,28 +191,27 @@ func main() {
 				if !ok {
 					continue
 				}
-				fmt.Println("specType:", specType.Name.Name)
+				fmt.Println("GenDecl.specType:", specType.Name.Name)
 				structType, ok := specType.Type.(*ast.StructType)
 				if !ok {
 					continue
 				}
 				for _, field := range structType.Fields.List {
 					for _, name := range field.Names {
-						fmt.Println("Name:", name)
+						fmt.Println("GenDecl.structType.Name:", name)
 					}
 					if field.Tag != nil {
-						fmt.Println("Description:", field.Tag.Value)
+						fmt.Println("GenDecl.structType.Tag:", field.Tag.Value)
 					}
 
 					fieldType, ok := field.Type.(*ast.Ident)
 					if ok {
-						fmt.Println("Type:", fieldType)
+						fmt.Println("GenDecl.structType.Type:", fieldType)
 					}
 				}
 				fmt.Println("@struct@")
+				fmt.Println("--")
 			}
-
-			fmt.Println("--")
 		}
 	}
 

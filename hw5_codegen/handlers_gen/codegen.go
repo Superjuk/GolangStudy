@@ -238,6 +238,27 @@ func main() {
 
 		for tok := parser.Scan(); tok != scanner.EOF; tok = parser.Scan() {
 			fmt.Printf("%s\n", parser.TokenText())
+			switch parser.TokenText() {
+			case "required":
+				out.Required = true
+			case "default":
+				tok = parser.Scan()
+				if tok != scanner.EOF {
+					out.DefaultStr = parser.TokenText()
+				}
+			case "paramname":
+				tok = parser.Scan()
+				if tok != scanner.EOF {
+					out.Paramname = parser.TokenText()
+				}
+			case "enum":
+				// tok = parser.Scan()
+				// if tok != scanner.EOF {
+				// 	out.Enum = append(out.Enum, parser.TokenText())
+				// }
+			default:
+				break
+			}
 		}
 
 		return
@@ -327,6 +348,9 @@ func main() {
 					for _, name := range field.Names {
 						apivalField.Name = name.Name
 						break
+					}
+					if apivalField.Tag.Paramname == "" {
+						apivalField.Tag.Paramname = strings.ToLower(apivalField.Name)
 					}
 					fieldType, ok := field.Type.(*ast.Ident)
 					if ok {

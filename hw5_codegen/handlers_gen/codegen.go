@@ -10,7 +10,7 @@ import (
 	"log"
 	"os"
 	"strings"
-	//"text/scanner"
+	"text/scanner"
 )
 
 /*
@@ -50,10 +50,19 @@ type {{GenDecl.specType}} struct {
 func (srv {{FuncDecl.Recv(src[:])}}) {{FuncDecl.Name}}(ctx context.Context, in {{FuncDecl.InParam}}) (*NewUser, error)
 */
 
+type TagType struct {
+	Required   bool
+	Paramname  string
+	Enum       []string
+	DefaultStr string
+	Min        int
+	Max        int
+}
+
 type StructField struct {
 	Name string
 	Type string
-	Tag  string
+	Tag  TagType
 }
 
 type ApigenApi struct {
@@ -214,6 +223,27 @@ func main() {
 	// fmt.Fprintln(out, sendResponse)
 	// fmt.Fprintln(out)
 
+	// Парсим tag
+	parseTag := func(tag string) (out TagType) {
+		// cleaning
+		firstClean := strings.Trim(tag, "`\"\"`")
+		str := strings.Replace(firstClean, "apivalidator:\"", "", 1)
+		str1 := strings.ReplaceAll(str, "=", " ")
+		str2 := strings.ReplaceAll(str1, ",", " ")
+		fmt.Println(str)
+
+		// Parsing
+		var parser scanner.Scanner
+		parser.Init(strings.NewReader(str2))
+
+		for tok := parser.Scan(); tok != scanner.EOF; tok = parser.Scan() {
+			fmt.Printf("%s\n", parser.TokenText())
+		}
+
+		return
+	}
+
+	// Парсим api.go
 	var apigens []Apigen
 	var apivalidators []Apivalidator
 
@@ -283,15 +313,16 @@ func main() {
 				}
 
 				var apivalFields []StructField
+				tagsExist := false
 				for _, field := range structType.Fields.List {
 					var apivalField StructField
 					tag := field.Tag
 					if tag != nil {
-						if !strings.HasPrefix(tag.Value, "`"+"apivalidator:") {
+						if !strings.Contains(tag.Value, "apivalidator:") {
 							continue
 						}
-						//var s scanner.Scanner
-						apivalField.Tag = field.Tag.Value
+						tagsExist = true
+						apivalField.Tag = parseTag(field.Tag.Value)
 					}
 					for _, name := range field.Names {
 						apivalField.Name = name.Name
@@ -304,7 +335,7 @@ func main() {
 					apivalFields = append(apivalFields, apivalField)
 				}
 
-				if len(apivalFields) > 0 {
+				if len(apivalFields) > 0 && tagsExist {
 					apival.Fields = apivalFields
 					apivalidators = append(apivalidators, apival)
 				}
@@ -324,7 +355,7 @@ func main() {
 	}
 
 	for _, av := range apivalidators {
-		fmt.Println("Type:", av.Type)
+		fmt.Println("StructType:", av.Type)
 		for _, fld := range av.Fields {
 			fmt.Println("Name:", fld.Name, "; Type:", fld.Type)
 			fmt.Println("Tag:", fld.Tag)

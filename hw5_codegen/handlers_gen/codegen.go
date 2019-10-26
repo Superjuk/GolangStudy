@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 	"text/scanner"
 )
@@ -55,8 +56,8 @@ type TagType struct {
 	Paramname  string
 	Enum       []string
 	DefaultStr string
-	Min        int
-	Max        int
+	Min        *int
+	Max        *int
 }
 
 type StructField struct {
@@ -230,14 +231,12 @@ func main() {
 		str := strings.Replace(firstClean, "apivalidator:\"", "", 1)
 		str1 := strings.ReplaceAll(str, "=", " ")
 		str2 := strings.ReplaceAll(str1, ",", " ")
-		fmt.Println(str)
 
 		// Parsing
 		var parser scanner.Scanner
 		parser.Init(strings.NewReader(str2))
 
 		for tok := parser.Scan(); tok != scanner.EOF; tok = parser.Scan() {
-			fmt.Printf("%s\n", parser.TokenText())
 			switch parser.TokenText() {
 			case "required":
 				out.Required = true
@@ -251,11 +250,25 @@ func main() {
 				if tok != scanner.EOF {
 					out.Paramname = parser.TokenText()
 				}
-			case "enum":
-				// tok = parser.Scan()
-				// if tok != scanner.EOF {
-				// 	out.Enum = append(out.Enum, parser.TokenText())
-				// }
+			case "enum", "|":
+				tok = parser.Scan()
+				if tok != scanner.EOF {
+					out.Enum = append(out.Enum, parser.TokenText())
+				}
+			case "min":
+				tok = parser.Scan()
+				if tok != scanner.EOF {
+					if min, err := strconv.Atoi(parser.TokenText()); err == nil {
+						out.Min = &min
+					}
+				}
+			case "max":
+				tok = parser.Scan()
+				if tok != scanner.EOF {
+					if max, err := strconv.Atoi(parser.TokenText()); err == nil {
+						out.Max = &max
+					}
+				}
 			default:
 				break
 			}
@@ -382,7 +395,16 @@ func main() {
 		fmt.Println("StructType:", av.Type)
 		for _, fld := range av.Fields {
 			fmt.Println("Name:", fld.Name, "; Type:", fld.Type)
-			fmt.Println("Tag:", fld.Tag)
+			fmt.Println("Tag:", fld.Tag.DefaultStr)
+			fmt.Println("Tag:", fld.Tag.Enum)
+			fmt.Println("Tag:", fld.Tag.Paramname)
+			fmt.Println("Tag:", fld.Tag.Required)
+			if fld.Tag.Max != nil {
+				fmt.Println("Tag:", *(fld.Tag.Max))
+			}
+			if fld.Tag.Min != nil {
+				fmt.Println("Tag:", *(fld.Tag.Min))
+			}
 		}
 		fmt.Println("--")
 	}

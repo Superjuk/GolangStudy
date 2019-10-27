@@ -12,44 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"text/scanner"
+	"text/template"
 )
-
-/*
-***original***
-//apivalidator
-type CreateParams struct {
-	Login  string `apivalidator:"required,min=10"`
-	Name   string `apivalidator:"paramname=full_name"`
-	Status string `apivalidator:"enum=user|moderator|admin,default=user"`
-	Age    int    `apivalidator:"min=0,max=128"`
-}
-
-//json
-type User struct {
-	ID       uint64 `json:"id"`
-	Login    string `json:"login"`
-	FullName string `json:"full_name"`
-	Status   int    `json:"status"`
-}
-
-// apigen:api {"url": "/user/create", "auth": true, "method": "POST"}
-func (srv *MyApi) Create(ctx context.Context, in CreateParams) (*NewUser, error)
-------------------------------------------------------------------------------------
-***modified***
-//apivalidator
-type {{GenDecl.specType} | {FuncDecl.InParam}} struct {
-	{{GenDecl.structType.Name}}  {{GenDecl.structType.Type}} {{GenDecl.structType.Tag(`apivalidator:`)}}
-}
-
-//json
-type {{GenDecl.specType}} struct {
-	{{GenDecl.structType.Name}}  {{GenDecl.structType.Type}} {{GenDecl.structType.Tag(`json:`)}}
-}
-
-//apigen
-// {{FuncDecl.Doc}}
-func (srv {{FuncDecl.Recv(src[:])}}) {{FuncDecl.Name}}(ctx context.Context, in {{FuncDecl.InParam}}) (*NewUser, error)
-*/
 
 type TagType struct {
 	Required   bool
@@ -66,6 +30,7 @@ type StructField struct {
 	Tag  TagType
 }
 
+//for json unmarshall
 type ApigenApi struct {
 	Url    string
 	Auth   bool
@@ -77,7 +42,9 @@ type Apigen struct {
 	Type   string
 	Name   string
 	InType string
-	Api    ApigenApi
+	Url    string
+	Auth   bool
+	Method string
 }
 
 type Apivalidator struct {
@@ -122,15 +89,15 @@ const (
 }`
 
 	//ServeHTTP
-	serveHttpBegin = `func (h {{.structType}}) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	switch r.URL.Path {`
+	serveHttpBegin = `func (h {{.Type}}) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	switch r.URL.Path {` + "\n"
 
-	serveHttpCase = `	case "{{.apigenUrl}}":
-		h.handler{{.apigenMethod}}(w, r)`
+	serveHttpCase = `	case "{{.Url}}":
+		h.handler{{.Name}}(w, r)` + "\n"
 
 	serveHttpEnd = `	default:
 		sendResponse(w, &ApiError{http.StatusNotFound, fmt.Errorf("unknown method")}, nil)
-	}`
+	}` + "\n"
 
 	//handler
 	handlerBegin = `func (h {{.structType}}) handler{{.apigenMethod}}(w http.ResponseWriter, r *http.Request) {
@@ -202,27 +169,9 @@ func main() {
 	if err != nil {
 		fmt.Print(err)
 	}
+
 	// convert bytes to string
 	src := string(srcByte)
-
-	// out, _ := os.Create(os.Args[2])
-
-	// fmt.Fprintln(out, `package `+apiFile.Name.Name)
-	// fmt.Fprintln(out)
-	// fmt.Fprintln(out, `import "context"`)
-	// fmt.Fprintln(out, `import "encoding/json"`)
-	// fmt.Fprintln(out, `import "fmt"`)
-	// fmt.Fprintln(out, `import "log"`)
-	// fmt.Fprintln(out, `import "net/http"`)
-	// fmt.Fprintln(out, `import "net/url"`)
-	// fmt.Fprintln(out, `import "strconv"`)
-	// fmt.Fprintln(out)
-	// fmt.Fprintln(out, responseErr)
-	// fmt.Fprintln(out)
-	// fmt.Fprintln(out, responseOk)
-	// fmt.Fprintln(out)
-	// fmt.Fprintln(out, sendResponse)
-	// fmt.Fprintln(out)
 
 	// Парсим tag
 	parseTag := func(tag string) (out TagType) {
@@ -297,7 +246,9 @@ func main() {
 						fmt.Println("Json apigen error:", err.Error())
 						continue
 					}
-					apigenFunc.Api = apgn
+					apigenFunc.Auth = apgn.Auth
+					apigenFunc.Method = apgn.Method
+					apigenFunc.Url = apgn.Url
 				}
 
 				if gen.Recv.NumFields() > 0 {
@@ -380,36 +331,58 @@ func main() {
 		}
 	}
 
-	// print
-	for _, ag := range apigens {
-		fmt.Println("Name:", ag.Name)
-		fmt.Println("Type:", ag.Type)
-		fmt.Println("InType:", ag.InType)
-		fmt.Println("Url:", ag.Api.Url)
-		fmt.Println("Auth:", ag.Api.Auth)
-		fmt.Println("Method:", ag.Api.Method)
-		fmt.Println("--")
-	}
-
-	for _, av := range apivalidators {
-		fmt.Println("StructType:", av.Type)
-		for _, fld := range av.Fields {
-			fmt.Println("Name:", fld.Name, "; Type:", fld.Type)
-			fmt.Println("Tag:", fld.Tag.DefaultStr)
-			fmt.Println("Tag:", fld.Tag.Enum)
-			fmt.Println("Tag:", fld.Tag.Paramname)
-			fmt.Println("Tag:", fld.Tag.Required)
-			if fld.Tag.Max != nil {
-				fmt.Println("Tag:", *(fld.Tag.Max))
-			}
-			if fld.Tag.Min != nil {
-				fmt.Println("Tag:", *(fld.Tag.Min))
-			}
-		}
-		fmt.Println("--")
-	}
-	// filtering
-
 	/*API realization*/
+	out, _ := os.Create(os.Args[2])
 
+	fmt.Fprintln(out, `package `+apigen.Name.Name)
+	fmt.Fprintln(out)
+	fmt.Fprintln(out, `import "context"`)
+	fmt.Fprintln(out, `import "encoding/json"`)
+	fmt.Fprintln(out, `import "fmt"`)
+	fmt.Fprintln(out, `import "log"`)
+	fmt.Fprintln(out, `import "net/http"`)
+	fmt.Fprintln(out, `import "net/url"`)
+	fmt.Fprintln(out, `import "strconv"`)
+	fmt.Fprintln(out)
+	fmt.Fprintln(out, responseErr)
+	fmt.Fprintln(out)
+	fmt.Fprintln(out, responseOk)
+	fmt.Fprintln(out)
+	fmt.Fprintln(out, sendResponse)
+	fmt.Fprintln(out)
+
+	/*
+	   // Create a new template and parse the letter into it.
+	   t := template.Must(template.New("letter").Parse(letter))
+
+	   // Execute the template for each recipient.
+	   for _, r := range recipients {
+	       err := t.Execute(os.Stdout, r)
+	       if err != nil {
+	           log.Println("executing template:", err)
+	       }
+	   }
+	*/
+
+	// ServeHTTP
+	serveHttpBeginTmpl := template.Must(template.New("serveHttpBegin").Parse(serveHttpBegin))
+	serveHttpCaseTmpl := template.Must(template.New("serveHttpCase").Parse(serveHttpCase))
+	for _, sh := range apigens {
+		err := serveHttpBeginTmpl.Execute(out, sh)
+		if err != nil {
+			log.Fatalln("ServeHttp gen err =", err.Error())
+		}
+
+		err = serveHttpCaseTmpl.Execute(out, sh)
+		if err != nil {
+			log.Fatalln("ServeHttp gen err =", err.Error())
+		}
+
+		fmt.Fprintln(out, serveHttpEnd)
+	}
+
+	// fmt.Fprintln(out, serveHttpBegin)
+	// fmt.Fprintln(out, serveHttpCase)
+	// fmt.Fprintln(out, serveHttpEnd)
+	// fmt.Fprintln(out)
 }

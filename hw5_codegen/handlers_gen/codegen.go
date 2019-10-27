@@ -37,15 +37,23 @@ type ApigenApi struct {
 	Method string
 }
 
-//------------------------------------
-type Apigen struct {
-	Type   string
+type ApigenData struct {
 	Name   string
 	InType string
 	Url    string
 	Auth   bool
 	Method string
 }
+
+//------------------------------------
+// type Apigen struct {
+// 	Type   string
+// 	Name   string
+// 	InType string
+// 	Url    string
+// 	Auth   bool
+// 	Method string
+// }
 
 type Apivalidator struct {
 	Type   string
@@ -89,7 +97,7 @@ const (
 }`
 
 	//ServeHTTP
-	serveHttpBegin = `func (h {{.Type}}) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	serveHttpBegin = `func (h {{template "TYPE"}}) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {` + "\n"
 
 	serveHttpCase = `	case "{{.Url}}":
@@ -97,7 +105,7 @@ const (
 
 	serveHttpEnd = `	default:
 		sendResponse(w, &ApiError{http.StatusNotFound, fmt.Errorf("unknown method")}, nil)
-	}` + "\n"
+	}` + "\n}\n"
 
 	//handler
 	handlerBegin = `func (h {{.structType}}) handler{{.apigenMethod}}(w http.ResponseWriter, r *http.Request) {
@@ -227,14 +235,27 @@ func main() {
 	}
 
 	// Парсим api.go
-	var apigens []Apigen
+	//var apigens []Apigen
+	apigens := make(map[string]([]ApigenData))
 	var apivalidators []Apivalidator
 
 	for _, decl := range apigen.Decls {
 		// анализируем функции
 		if gen, ok := decl.(*ast.FuncDecl); ok {
 			if gen.Doc.Text() != "" {
-				var apigenFunc Apigen
+				var apigenKey string
+				if gen.Recv.NumFields() > 0 {
+					start := gen.Recv.List[0].Type.Pos() - 1
+					end := gen.Recv.List[0].Type.End() - 1
+					if end > start {
+						apigenKey = src[start:end]
+					} else {
+						fmt.Println("Type apigen error: start = end")
+						continue
+					}
+				}
+
+				var apigenFunc ApigenData
 				apigenFunc.Name = gen.Name.String()
 
 				var apgn ApigenApi
@@ -249,17 +270,6 @@ func main() {
 					apigenFunc.Auth = apgn.Auth
 					apigenFunc.Method = apgn.Method
 					apigenFunc.Url = apgn.Url
-				}
-
-				if gen.Recv.NumFields() > 0 {
-					start := gen.Recv.List[0].Type.Pos() - 1
-					end := gen.Recv.List[0].Type.End() - 1
-					if end > start {
-						apigenFunc.Type = src[start:end]
-					} else {
-						fmt.Println("Type apigen error: start = end")
-						continue
-					}
 				}
 
 				for _, p := range gen.Type.Params.List {
@@ -277,7 +287,7 @@ func main() {
 					}
 				}
 
-				apigens = append(apigens, apigenFunc)
+				apigens[apigenKey] = append(apigens[apigenKey], apigenFunc)
 			}
 			continue
 		}
@@ -363,26 +373,27 @@ func main() {
 	       }
 	   }
 	*/
-
-	// ServeHTTP
-	serveHttpBeginTmpl := template.Must(template.New("serveHttpBegin").Parse(serveHttpBegin))
+	/*
+		`{{define "T1"}}ONE{{end}}
+		{{define "T2"}}TWO{{end}}
+		{{define "T3"}}{{template "T1"}} {{template "T2"}}{{end}}
+		{{template "T3"}}`
+	*/
+	// generate serveHTTP
 	serveHttpCaseTmpl := template.Must(template.New("serveHttpCase").Parse(serveHttpCase))
-	for _, sh := range apigens {
-		err := serveHttpBeginTmpl.Execute(out, sh)
+	for key, _ := range apigens {
+		serveHttpBeginTmpl := template.Must(template.New("serveHttpBegin").Parse(`{{define "TYPE"}}` + key + `{{end}}` + serveHttpBegin))
+		err := serveHttpBeginTmpl.Execute(out, "")
 		if err != nil {
 			log.Fatalln("ServeHttp gen err =", err.Error())
 		}
-
-		err = serveHttpCaseTmpl.Execute(out, sh)
-		if err != nil {
-			log.Fatalln("ServeHttp gen err =", err.Error())
+		for _, sh := range apigens[key] {
+			err = serveHttpCaseTmpl.Execute(out, sh)
+			if err != nil {
+				log.Fatalln("ServeHttp gen err =", err.Error())
+			}
 		}
 
 		fmt.Fprintln(out, serveHttpEnd)
 	}
-
-	// fmt.Fprintln(out, serveHttpBegin)
-	// fmt.Fprintln(out, serveHttpCase)
-	// fmt.Fprintln(out, serveHttpEnd)
-	// fmt.Fprintln(out)
 }

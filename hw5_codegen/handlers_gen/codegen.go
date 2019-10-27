@@ -96,7 +96,7 @@ const (
 	}
 }`
 
-	//ServeHTTP
+	// ServeHTTP
 	serveHttpBegin = `func (h {{template "TYPE"}}) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {` + "\n"
 
@@ -107,48 +107,48 @@ const (
 		sendResponse(w, &ApiError{http.StatusNotFound, fmt.Errorf("unknown method")}, nil)
 	}` + "\n}\n"
 
-	//handler
-	handlerBegin = `func (h {{.structType}}) handler{{.apigenMethod}}(w http.ResponseWriter, r *http.Request) {
-	var query url.Values`
+	// Handler
+	handlerBegin = `func (h {{template "TYPE"}}) handler{{.Name}}(w http.ResponseWriter, r *http.Request) {
+	var query url.Values` + "\n"
 
 	handlerMethodGetTrue = `if r.Method == http.MethodGet {
 		query = r.URL.Query()
-	}`
+	}` + "\n"
 
 	handlerMethodGetFalse = `if r.Method == http.MethodGet {
 		sendResponse(w, &ApiError{http.StatusNotAcceptable, fmt.Errorf("bad method")}, nil)
 		return
-	}`
+	}` + "\n"
 
 	handlerMethodPostTrue = `if r.Method == http.MethodPost {
 		r.ParseForm()
 		query = r.PostForm
-	}`
+	}` + "\n"
 
 	handlerMethodPostFalse = `if r.Method == http.MethodPost {
 		sendResponse(w, &ApiError{http.StatusNotAcceptable, fmt.Errorf("bad method")}, nil)
 		return
-	}`
+	}` + "\n"
 
 	handlerAuthTrue = `if r.Header.Get("X-Auth") != "100500" {
 		sendResponse(w, &ApiError{http.StatusForbidden, fmt.Errorf("unauthorized")}, nil)
 		return
-	}`
+	}` + "\n"
 
 	handlerEnd = `// валидирование параметров
-	params, errVal := h.validate{{.apivalidatorStructType}}(query)
+	params, errVal := h.validate{{.InType}}(query)
 	if errVal != nil {
 		sendResponse(w, errVal, nil)
 		return
 	}
 
 	ctx := context.Background()
-	res, err := h.{{.apigenMethod}}(ctx, *params)
+	res, err := h.{{.Name}}(ctx, *params)
 	if err != nil {
 		if ae, ok := err.(ApiError); ok {
 			sendResponse(w, &ae, nil)
 		} else {
-			sendResponse(w, &ApiError{http.StatusInternalServerError, err}, nil)
+			sendResponse(w, &ApiErroserveHttpr{http.StatusInternalServerError, err}, nil)
 		}
 		return
 	}
@@ -156,9 +156,9 @@ const (
 	// // прочие обработки
 	//! \todo обработать context
 
-	sendResponse(w, nil, res)`
+	sendResponse(w, nil, res)` + "\n}\n"
 
-	//validate
+	// Validate
 	validateStart = `func (h {{.structType}}) validate{{.apivalidatorStructType}}(query url.Values) (*{{.apivalidatorStructType}}, *ApiError) {
 	out := &{{.apivalidatorStructType}}{}`
 
@@ -381,6 +381,7 @@ func main() {
 	*/
 	// generate serveHTTP
 	serveHttpCaseTmpl := template.Must(template.New("serveHttpCase").Parse(serveHttpCase))
+
 	for key, _ := range apigens {
 		serveHttpBeginTmpl := template.Must(template.New("serveHttpBegin").Parse(`{{define "TYPE"}}` + key + `{{end}}` + serveHttpBegin))
 		err := serveHttpBeginTmpl.Execute(out, "")
@@ -395,5 +396,16 @@ func main() {
 		}
 
 		fmt.Fprintln(out, serveHttpEnd)
+		fmt.Fprintln(out)
+
+		// handler
+		handlerBeginTmpl := template.Must(template.New("handlerBegin").Parse(`{{define "TYPE"}}` + key + `{{end}}` + handlerBegin))
+		for _, h := range apigens[key] {
+			err = handlerBeginTmpl.Execute(out, h)
+			if err != nil {
+				log.Fatalln("Handler gen err =", err.Error())
+			}
+
+		}
 	}
 }

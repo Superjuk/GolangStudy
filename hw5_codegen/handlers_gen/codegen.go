@@ -46,11 +46,6 @@ type ApigenData struct {
 	Method string
 }
 
-type Apivalidator struct {
-	Type   string
-	Fields []StructField
-}
-
 const (
 	responseErr = `type ResponseErr struct {
 	Error string ` + "`" + `json:"error"` + "`" + `
@@ -309,7 +304,6 @@ func main() {
 
 	// Парсим api.go
 	apigens := make(map[string]([]ApigenData))
-	var apivalidators []Apivalidator //deprecated
 	apivals := make(map[string]([]StructField))
 
 	for _, decl := range apigen.Decls {
@@ -368,12 +362,10 @@ func main() {
 		// анализируем структуры
 		if gen, ok := decl.(*ast.GenDecl); ok {
 			for _, spec := range gen.Specs {
-				var apival Apivalidator
 				specType, ok := spec.(*ast.TypeSpec)
 				if !ok {
 					continue
 				}
-				apival.Type = specType.Name.Name
 
 				structType, ok := specType.Type.(*ast.StructType)
 				if !ok {
@@ -407,8 +399,6 @@ func main() {
 				}
 
 				if len(apivalFields) > 0 && tagsExist {
-					apival.Fields = apivalFields
-					apivalidators = append(apivalidators, apival)
 					apivals[specType.Name.Name] = apivalFields
 				}
 			}
@@ -435,24 +425,6 @@ func main() {
 	fmt.Fprintln(out, sendResponse)
 	fmt.Fprintln(out)
 
-	/*
-	   // Create a new template and parse the letter into it.
-	   t := template.Must(template.New("letter").Parse(letter))
-
-	   // Execute the template for each recipient.
-	   for _, r := range recipients {
-	       err := t.Execute(os.Stdout, r)
-	       if err != nil {
-	           log.Println("executing template:", err)
-	       }
-	   }
-	*/
-	/*
-		`{{define "T1"}}ONE{{end}}
-		{{define "T2"}}TWO{{end}}
-		{{define "T3"}}{{template "T1"}} {{template "T2"}}{{end}}
-		{{template "T3"}}`
-	*/
 	// generate serveHTTP
 	serveHttpCaseTmpl := template.Must(template.New("serveHttpCase").Parse(serveHttpCase))
 

@@ -8,6 +8,7 @@ import (
 	"go/token"
 	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
@@ -44,16 +45,6 @@ type ApigenData struct {
 	Auth   bool
 	Method string
 }
-
-//------------------------------------
-// type Apigen struct {
-// 	Type   string
-// 	Name   string
-// 	InType string
-// 	Url    string
-// 	Auth   bool
-// 	Method string
-// }
 
 type Apivalidator struct {
 	Type   string
@@ -98,44 +89,54 @@ const (
 
 	// ServeHTTP
 	serveHttpBegin = `func (h {{template "TYPE"}}) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	switch r.URL.Path {` + "\n"
+	switch r.URL.Path {
+`
 
 	serveHttpCase = `	case "{{.Url}}":
-		h.handler{{.Name}}(w, r)` + "\n"
+		h.handler{{.Name}}(w, r)
+`
 
 	serveHttpEnd = `	default:
 		sendResponse(w, &ApiError{http.StatusNotFound, fmt.Errorf("unknown method")}, nil)
-	}` + "\n}\n"
+	}
+}
+`
 
 	// Handler
 	handlerBegin = `func (h {{template "TYPE"}}) handler{{.Name}}(w http.ResponseWriter, r *http.Request) {
-	var query url.Values` + "\n"
+	var query url.Values
+`
 
-	handlerMethodGetTrue = `if r.Method == http.MethodGet {
+	handlerMethodGetTrue = `	if r.Method == http.MethodGet {
 		query = r.URL.Query()
-	}` + "\n"
+	}
+`
 
-	handlerMethodGetFalse = `if r.Method == http.MethodGet {
+	handlerMethodGetFalse = `	if r.Method == http.MethodGet {
 		sendResponse(w, &ApiError{http.StatusNotAcceptable, fmt.Errorf("bad method")}, nil)
 		return
-	}` + "\n"
+	}
+`
 
-	handlerMethodPostTrue = `if r.Method == http.MethodPost {
+	handlerMethodPostTrue = `	if r.Method == http.MethodPost {
 		r.ParseForm()
 		query = r.PostForm
-	}` + "\n"
+	}
+`
 
-	handlerMethodPostFalse = `if r.Method == http.MethodPost {
+	handlerMethodPostFalse = `	if r.Method == http.MethodPost {
 		sendResponse(w, &ApiError{http.StatusNotAcceptable, fmt.Errorf("bad method")}, nil)
 		return
-	}` + "\n"
+	}
+`
 
-	handlerAuthTrue = `if r.Header.Get("X-Auth") != "100500" {
+	handlerAuthTrue = `	if r.Header.Get("X-Auth") != "100500" {
 		sendResponse(w, &ApiError{http.StatusForbidden, fmt.Errorf("unauthorized")}, nil)
 		return
-	}` + "\n"
+	}
+`
 
-	handlerEnd = `// валидирование параметров
+	handlerEnd = `	// валидирование параметров
 	params, errVal := h.validate{{.InType}}(query)
 	if errVal != nil {
 		sendResponse(w, errVal, nil)
@@ -156,7 +157,9 @@ const (
 	// // прочие обработки
 	//! \todo обработать context
 
-	sendResponse(w, nil, res)` + "\n}\n"
+	sendResponse(w, nil, res)
+}
+`
 
 	// Validate
 	validateStart = `func (h {{.structType}}) validate{{.apivalidatorStructType}}(query url.Values) (*{{.apivalidatorStructType}}, *ApiError) {
@@ -396,16 +399,40 @@ func main() {
 		}
 
 		fmt.Fprintln(out, serveHttpEnd)
-		fmt.Fprintln(out)
 
 		// handler
 		handlerBeginTmpl := template.Must(template.New("handlerBegin").Parse(`{{define "TYPE"}}` + key + `{{end}}` + handlerBegin))
 		for _, h := range apigens[key] {
 			err = handlerBeginTmpl.Execute(out, h)
 			if err != nil {
-				log.Fatalln("Handler gen err =", err.Error())
+				log.Fatalln("HandlerBegin gen err =", err.Error())
 			}
 
+			switch h.Method {
+			case "":
+				fmt.Fprintln(out, handlerMethodGetTrue)
+				fmt.Fprintln(out, handlerMethodPostTrue)
+			case http.MethodGet:
+				fmt.Fprintln(out, handlerMethodGetTrue)
+				fmt.Fprintln(out, handlerMethodPostFalse)
+			case http.MethodPost:
+				fmt.Fprintln(out, handlerMethodGetFalse)
+				fmt.Fprintln(out, handlerMethodPostTrue)
+			default:
+				break
+			}
+
+			if h.Auth == true {
+				fmt.Fprintln(out, handlerAuthTrue)
+			}
+
+			handlerEndTmpl := template.Must(template.New("handlerEnd").Parse(handlerEnd))
+			err = handlerEndTmpl.Execute(out, h)
+			if err != nil {
+				log.Fatalln("HandlerEnd gen err =", err.Error())
+			}
+
+			fmt.Fprintln(out)
 		}
 	}
 }

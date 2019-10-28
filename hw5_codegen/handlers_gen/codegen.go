@@ -149,7 +149,7 @@ const (
 		if ae, ok := err.(ApiError); ok {
 			sendResponse(w, &ae, nil)
 		} else {
-			sendResponse(w, &ApiErroserveHttpr{http.StatusInternalServerError, err}, nil)
+			sendResponse(w, &ApiError{http.StatusInternalServerError, err}, nil)
 		}
 		return
 	}
@@ -162,10 +162,80 @@ const (
 `
 
 	// Validate
-	validateStart = `func (h {{.structType}}) validate{{.apivalidatorStructType}}(query url.Values) (*{{.apivalidatorStructType}}, *ApiError) {
-	out := &{{.apivalidatorStructType}}{}`
+	validateStart = `func (h {{template "TYPE"}}) validate{{.InType}}(query url.Values) (*{{.InType}}, *ApiError) {
+	out := &{{.InType}}{}
+`
 
-	validateFieldTypeString = `out.{{.apivalidatorFieldName}} = query.Get("{{.apivalidatorParamname}}")`
+	validateFieldTypeString = `
+	out.{{.Name}} = query.Get("{{.Tag.Paramname}}")
+`
+	validateRequired = `
+	if out.{{.Name}} == "" {
+		return nil, &ApiError{
+			http.StatusBadRequest,
+			fmt.Errorf("{{.Tag.Paramname}} must be not empty")}
+	}
+`
+	validateDefault = `
+	if out.{{.Name}} == "" {
+		out.{{.Name}} = "{{.Tag.DefaultStr}}"
+	}	
+`
+	validateEnum = `
+	switch out.{{.Name}} {
+	case "{{join .Tag.Enum "\", \""}}":
+		break
+	default:
+		return nil, &ApiError{
+			http.StatusBadRequest,
+			fmt.Errorf("{{.Tag.Paramname}} must be one of [{{join .Tag.Enum ", "}}]")}
+	}	
+`
+	validateMinInt = `
+	if out.{{.Name}} < {{.Tag.Min}} {
+		return nil, &ApiError{
+			http.StatusBadRequest,
+			fmt.Errorf("{{.Tag.Paramname}} must be >= {{.Tag.Min}}")}
+	}
+`
+	validateMinString = `
+	if len(out.{{.Name}}) < {{.Tag.Min}} {
+		return nil, &ApiError{
+			http.StatusBadRequest,
+			fmt.Errorf("{{.Tag.Paramname}} len must be >= {{.Tag.Min}}")}
+	}
+`
+	validateIsNum = `
+	var err{{.Name}} error
+	out.{{.Name}}, err{{.Name}} = strconv.Atoi(query.Get("{{.Tag.Paramname}}"))
+	if err{{.Name}} != nil {
+		return nil, &ApiError{
+			http.StatusBadRequest,
+			fmt.Errorf("{{.Tag.Paramname}} must be int")}
+	}
+`
+	validateMaxInt = `
+	if out.{{.Name}} > {{.Tag.Max}} {
+		return nil, &ApiError{
+			http.StatusBadRequest,
+			fmt.Errorf("{{.Tag.Paramname}} must be <= {{.Tag.Max}}")}
+	}
+`
+	validateMaxString = `
+	if len(out.{{.Name}}) > {{.Tag.Max}} {
+		return nil, &ApiError{
+			http.StatusBadRequest,
+			fmt.Errorf("{{.Tag.Paramname}} len must be <= {{.Tag.Max}}")}
+	}
+`
+	validateEnd = `
+	return out, nil
+}
+`
+)
+
+var (
+	funcs = template.FuncMap{"join": strings.Join}
 )
 
 func main() {
@@ -238,9 +308,9 @@ func main() {
 	}
 
 	// Парсим api.go
-	//var apigens []Apigen
 	apigens := make(map[string]([]ApigenData))
-	var apivalidators []Apivalidator
+	var apivalidators []Apivalidator //deprecated
+	apivals := make(map[string]([]StructField))
 
 	for _, decl := range apigen.Decls {
 		// анализируем функции
@@ -339,6 +409,7 @@ func main() {
 				if len(apivalFields) > 0 && tagsExist {
 					apival.Fields = apivalFields
 					apivalidators = append(apivalidators, apival)
+					apivals[specType.Name.Name] = apivalFields
 				}
 			}
 		}
@@ -433,6 +504,87 @@ func main() {
 			}
 
 			fmt.Fprintln(out)
+
+			// Validate
+			validateStartTmpl := template.Must(template.New("validateStart").Parse(`{{define "TYPE"}}` + key + `{{end}}` + validateStart))
+			err = validateStartTmpl.Execute(out, h)
+			if err != nil {
+				log.Fatalln("ValidateStart gen err =", err.Error())
+			}
+
+			for _, item := range apivals[h.InType] {
+				if item.Type == "int" {
+					validateIsNumTmpl := template.Must(template.New("validateIsNum").Funcs(funcs).Parse(validateIsNum))
+					err = validateIsNumTmpl.Execute(out, item)
+					if err != nil {
+						log.Fatalln("validateIsNum gen err =", err.Error())
+					}
+				} else if item.Type == "string" {
+					validateFieldTypeStringTmpl := template.Must(template.New("validateFieldTypeString").Parse(validateFieldTypeString))
+					err = validateFieldTypeStringTmpl.Execute(out, item)
+					if err != nil {
+						log.Fatalln("validateFieldTypeString gen err =", err.Error())
+					}
+				}
+
+				if item.Tag.Required == true {
+					validateRequiredTmpl := template.Must(template.New("validateRequired").Parse(validateRequired))
+					err = validateRequiredTmpl.Execute(out, item)
+					if err != nil {
+						log.Fatalln("validateRequired gen err =", err.Error())
+					}
+				}
+
+				if len(item.Tag.DefaultStr) > 0 {
+					validateDefaultTmpl := template.Must(template.New("validateDefault").Parse(validateDefault))
+					err = validateDefaultTmpl.Execute(out, item)
+					if err != nil {
+						log.Fatalln("validateDefault gen err =", err.Error())
+					}
+				}
+
+				if len(item.Tag.Enum) > 0 {
+					validateEnumTmpl := template.Must(template.New("validateEnum").Funcs(funcs).Parse(validateEnum))
+					err = validateEnumTmpl.Execute(out, item)
+					if err != nil {
+						log.Fatalln("validateEnum gen err =", err.Error())
+					}
+				}
+
+				if item.Tag.Min != nil {
+					if item.Type == "int" {
+						validateMinIntTmpl := template.Must(template.New("validateMinInt").Parse(validateMinInt))
+						err = validateMinIntTmpl.Execute(out, item)
+						if err != nil {
+							log.Fatalln("validateMinInt gen err =", err.Error())
+						}
+					} else if item.Type == "string" {
+						validateMinStringTmpl := template.Must(template.New("validateMinString").Parse(validateMinString))
+						err = validateMinStringTmpl.Execute(out, item)
+						if err != nil {
+							log.Fatalln("validateMinString gen err =", err.Error())
+						}
+					}
+				}
+
+				if item.Tag.Max != nil {
+					if item.Type == "int" {
+						validateMaxIntTmpl := template.Must(template.New("validateMaxInt").Parse(validateMaxInt))
+						err = validateMaxIntTmpl.Execute(out, item)
+						if err != nil {
+							log.Fatalln("validateMaxInt gen err =", err.Error())
+						}
+					} else if item.Type == "string" {
+						validateMaxStringTmpl := template.Must(template.New("validateMaxString").Parse(validateMaxString))
+						err = validateMaxStringTmpl.Execute(out, item)
+						if err != nil {
+							log.Fatalln("validateMaxString gen err =", err.Error())
+						}
+					}
+				}
+			}
+
+			fmt.Fprintln(out, validateEnd)
 		}
 	}
 }

@@ -63,7 +63,12 @@ func (db *DbApi) Read(w http.ResponseWriter, r *http.Request) {
 	case 2:
 		table = cmd[1]
 		if table == "" {
-			fmt.Println("Get all tables")
+			fmt.Println("Get all tables...")
+			result, err := db.db.Exec("SHOW TABLES")
+			if err != nil {
+				log.Println("Error on show table's list:", err.Error())
+			}
+			fmt.Println(result)
 		} else {
 			fmt.Println("Table =", table)
 		}

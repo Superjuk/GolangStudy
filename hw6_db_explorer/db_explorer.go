@@ -6,16 +6,26 @@ import (
 	"log"
 	"net/http"
 	"strings"
-	"sync"
+	//"sync"
 )
 
 // обращаю ваше внимание - в этом задании запрещены глобальные переменные
 type DbApi struct {
-	mu sync.Mutex
+	//mu sync.Mutex
+	db *sql.DB
 }
 
 func NewDbExplorer(db *sql.DB) (*DbApi, error) {
-	return &DbApi{}, nil
+	db.SetMaxOpenConns(5)
+
+	err := db.Ping()
+	if err != nil {
+		log.Fatalln("DB not connected")
+	} else {
+		log.Println("DB connected")
+	}
+
+	return &DbApi{db}, nil
 }
 
 /*
@@ -40,11 +50,6 @@ func (db *DbApi) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		db.Delete(w, r)
 	default:
 		log.Println("Unknown method")
-		// command := strings.Split(r.URL.Path, "/")
-		// fmt.Println(command)
-		// if len(command) <= 3 {
-		// 	fmt.Println(r.URL.Query())
-		// }
 	}
 }
 
@@ -69,6 +74,13 @@ func (db *DbApi) Read(w http.ResponseWriter, r *http.Request) {
 	default:
 		log.Println("Wrong command")
 	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("Hello, Curl!"))
+
+	db.db.Query("SHOW TABLES")
+
 }
 
 func (db *DbApi) Create(w http.ResponseWriter, r *http.Request) {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"reflect"
 	"strings"
 	//"net/url"
 	//"sync"
@@ -111,13 +112,24 @@ func (db *DbApi) Read(w http.ResponseWriter, r *http.Request) {
 				log.Println("Error on show table's list:", err.Error())
 				return
 			}
+			cols, err := rows.Columns()
+			if err != nil {
+				log.Println("Error on load cols:", err.Error())
+			}
+			fmt.Println(cols)
+			vals := make([]interface{}, len(cols))
+			for i, _ := range cols {
+				vals[i] = new(sql.RawBytes)
+			}
 			for rows.Next() {
-				var s string
-				err = rows.Scan(&s)
+				err = rows.Scan(vals...)
 				if err != nil {
 					log.Println("Error on load rows:", err.Error())
 				}
-				fmt.Println(s)
+				for _, itemRaw := range vals {
+					item := reflect.ValueOf(itemRaw)
+					fmt.Println(item.Convert(reflect.String))
+				}
 			}
 			rows.Close()
 			/* GET /$table?limit=5&offset=7 - возвращает список из 5 записей (limit) начиная с 7-й (offset) из таблицы $table. limit по-умолчанию 5, offset 0 */

@@ -6,7 +6,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"reflect"
+
+	//"reflect"
 	"strings"
 	//"net/url"
 	//"sync"
@@ -112,11 +113,24 @@ func (db *DbApi) Read(w http.ResponseWriter, r *http.Request) {
 				log.Println("Error on show table's list:", err.Error())
 				return
 			}
+
 			cols, err := rows.Columns()
 			if err != nil {
 				log.Println("Error on load cols:", err.Error())
 			}
 			fmt.Println(cols)
+
+			colTypes, err := rows.ColumnTypes()
+			if err != nil {
+				log.Println("Error on load colTypes:", err.Error())
+			}
+			for _, item := range colTypes {
+				fmt.Println(item.DatabaseTypeName(), item.ScanType())
+				if l, ok := item.Length(); ok {
+					fmt.Println(l)
+				}
+			}
+
 			vals := make([]interface{}, len(cols))
 			for i, _ := range cols {
 				vals[i] = new(sql.RawBytes)
@@ -127,8 +141,8 @@ func (db *DbApi) Read(w http.ResponseWriter, r *http.Request) {
 					log.Println("Error on load rows:", err.Error())
 				}
 				for _, itemRaw := range vals {
-					item := reflect.ValueOf(itemRaw)
-					fmt.Println(item.Convert(reflect.String))
+					str := itemRaw.(*sql.RawBytes)
+					fmt.Println(string(*str))
 				}
 			}
 			rows.Close()

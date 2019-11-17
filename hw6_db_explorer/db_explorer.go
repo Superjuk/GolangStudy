@@ -57,7 +57,6 @@ func sendResponse(w http.ResponseWriter, err *ApiError, response interface{}) {
 	}
 }
 
-// обращаю ваше внимание - в этом задании запрещены глобальные переменные
 type DbApi struct {
 	//mu sync.Mutex
 	db *sql.DB
@@ -117,21 +116,29 @@ func (db *DbApi) Read(w http.ResponseWriter, r *http.Request) {
 			cols, err := rows.Columns()
 			if err != nil {
 				log.Println("Error on load cols:", err.Error())
+				return
 			}
-			fmt.Println(cols)
+
+			if len(cols) != 1 {
+				log.Println("Error on cols len: len must equal 1")
+				return
+			}
 
 			colTypes, err := rows.ColumnTypes()
 			if err != nil {
 				log.Println("Error on load colTypes:", err.Error())
+				return
 			}
-			for _, item := range colTypes {
-				fmt.Println(item.DatabaseTypeName(), item.ScanType())
-				if l, ok := item.Length(); ok {
-					fmt.Println(l)
-				}
+			if colTypes[0].ScanType() != *sql.RawBytes {
+				log.Println("Error col type: col type must be *RawBytes, have", colTypes[0].ScanType())
+				return
 			}
 
-			vals := make([]interface{}, len(cols))
+			/*for _, item := range colTypes {
+				fmt.Println(item.ScanType())
+			}*/
+
+			/*vals := make([]interface{}, len(cols))
 			for i, _ := range cols {
 				vals[i] = new(sql.RawBytes)
 			}
@@ -144,7 +151,7 @@ func (db *DbApi) Read(w http.ResponseWriter, r *http.Request) {
 					str := itemRaw.(*sql.RawBytes)
 					fmt.Println(string(*str))
 				}
-			}
+			}*/
 			rows.Close()
 			/* GET /$table?limit=5&offset=7 - возвращает список из 5 записей (limit) начиная с 7-й (offset) из таблицы $table. limit по-умолчанию 5, offset 0 */
 		} else {

@@ -6,12 +6,16 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 
 	//"reflect"
 	"strings"
 	//"net/url"
 	//"sync"
 )
+
+// response
+type CR map[string]interface{}
 
 type ApiError struct {
 	HTTPStatus int
@@ -102,16 +106,16 @@ func (db *DbApi) Read(w http.ResponseWriter, r *http.Request) {
 	var table string
 	var id string
 	switch len(cmd) {
-	/* GET / - возвращает список все таблиц (которые мы можем использовать в дальнейших запросах) */
+	/* GET / - возвращает список всех таблиц (которые мы можем использовать в дальнейших запросах) */
 	case 2:
 		table = cmd[1]
 		if table == "" {
-			fmt.Println("Get all tables...")
 			rows, err := db.db.Query("SHOW TABLES")
 			if err != nil {
 				log.Println("Error on show table's list:", err.Error())
 				return
 			}
+			defer rows.Close()
 
 			cols, err := rows.Columns()
 			if err != nil {
@@ -129,16 +133,13 @@ func (db *DbApi) Read(w http.ResponseWriter, r *http.Request) {
 				log.Println("Error on load colTypes:", err.Error())
 				return
 			}
-			if colTypes[0].ScanType() != *sql.RawBytes {
-				log.Println("Error col type: col type must be *RawBytes, have", colTypes[0].ScanType())
+			if colTypes[0].ScanType().Name() != "RawBytes" {
+				log.Println("Error col type: col type must be RawBytes, have", colTypes[0].ScanType().Name())
 				return
 			}
 
-			/*for _, item := range colTypes {
-				fmt.Println(item.ScanType())
-			}*/
-
-			/*vals := make([]interface{}, len(cols))
+			var tables []string
+			vals := make([]interface{}, len(cols))
 			for i, _ := range cols {
 				vals[i] = new(sql.RawBytes)
 			}
@@ -148,14 +149,66 @@ func (db *DbApi) Read(w http.ResponseWriter, r *http.Request) {
 					log.Println("Error on load rows:", err.Error())
 				}
 				for _, itemRaw := range vals {
-					str := itemRaw.(*sql.RawBytes)
-					fmt.Println(string(*str))
+					str := string(*(itemRaw.(*sql.RawBytes)))
+					tables = append(tables, str)
 				}
-			}*/
-			rows.Close()
-			/* GET /$table?limit=5&offset=7 - возвращает список из 5 записей (limit) начиная с 7-й (offset) из таблицы $table. limit по-умолчанию 5, offset 0 */
+			}
+
+			resp := map[string]interface{}{
+				"response": map[string][]string{
+					"tables": tables,
+				},
+			}
+			fmt.Println(resp)
 		} else {
-			fmt.Println("Table =", table)
+			/* GET /$table?limit=5&offset=7 - возвращает список из 5 записей (limit) начиная с 7-й (offset) из таблицы $table. limit по-умолчанию 5, offset 0 */
+			query := r.URL.Query()
+
+			limit := 5
+			if num, err := strconv.Atoi(query.Get("limit")); err == nil {
+				limit = num
+			}
+			fmt.Println(limit)
+
+			offset := 0
+			if num, err := strconv.Atoi(query.Get("offset")); err == nil {
+				offset = num
+			}
+			fmt.Println(offset)
+
+			rows, err := db.db.Query("SELECT COLUMN_NAME from INFORMATION_SCHEMA.COLUMNS where TABLE_NAME=?", table)
+			if err != nil {
+				log.Println("Error on show table's list:", err.Error())
+				return
+			}
+			defer rows.Close()
+
+			var fields []string
+			for rows.Next() {
+				var f string
+				err = rows.Scan(&f)
+				if err != nil {
+					log.Println("Error on row scan:", err.Error())
+				}
+				fields = append(fields, f)
+			}
+			fmt.Println(fields)
+
+			sqlQuery := string("SELECT " + strings.Join(fields, ", ") + " FROM ? LIMIT ?, ?")
+			rows, err = db.db.Query(sqlQuery, table, offset, limit)
+			if err != nil {
+				log.Println("Error on show table's list:", err.Error())
+				return
+			}
+
+			colTypes, err := rows.ColumnTypes()
+			if err != nil {
+				log.Println("Error on load colTypes:", err.Error())
+				return
+			}
+			for _, tp := range colTypes {
+				fmt.Println(tp.Name())
+			}
 		}
 	/* GET /$table/$id - возвращает информацию о самой записи или 404 */
 	case 3:

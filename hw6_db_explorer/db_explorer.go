@@ -194,8 +194,13 @@ func (db *DbApi) Read(w http.ResponseWriter, r *http.Request) {
 			}
 			fmt.Println(fields)
 
-			sqlQuery := string("SELECT " + strings.Join(fields, ", ") + " FROM ? LIMIT ?, ?")
-			rows, err = db.db.Query(sqlQuery, table, offset, limit)
+			if len(fields) == 0 {
+				log.Println("Error on row read:", table, "not exist")
+				return
+			}
+
+			sqlQuery := string("SELECT " + strings.Join(fields, ", ") + " FROM " + "`" + table + "`" + " LIMIT ?, ?")
+			rows, err = db.db.Query(sqlQuery, offset, limit)
 			if err != nil {
 				log.Println("Error on show table's list:", err.Error())
 				return
@@ -206,8 +211,30 @@ func (db *DbApi) Read(w http.ResponseWriter, r *http.Request) {
 				log.Println("Error on load colTypes:", err.Error())
 				return
 			}
-			for _, tp := range colTypes {
-				fmt.Println(tp.Name())
+			// for _, tp := range colTypes {
+			// 	isNil, _ := tp.Nullable()
+			// 	l, okLen := tp.Length()
+			// 	fmt.Println(tp.DatabaseTypeName(), l, okLen, isNil)
+			// }
+			vals := make([]interface{}, len(colTypes))
+			for i, _ := range colTypes {
+				vals[i] = new(sql.RawBytes)
+			}
+			for rows.Next() {
+				err = rows.Scan(vals...)
+				if err != nil {
+					log.Println("Error on load rows:", err.Error())
+				}
+
+				for i, _ /*v*/ := range vals {
+					//"VARCHAR", "TEXT", "NVARCHAR", "DECIMAL", "BOOL", "INT", "BIGINT"
+					fmt.Println(colTypes[i].DatabaseTypeName(), colTypes[i].ScanType())
+					// switch colTypes[i].DatabaseTypeName() {
+					// 	case sql.RawBytes
+					// }
+					// str := string(*(v.(*sql.RawBytes)))
+					// tables = append(tables, str)
+				}
 			}
 		}
 	/* GET /$table/$id - возвращает информацию о самой записи или 404 */

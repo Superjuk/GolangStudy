@@ -7,9 +7,8 @@ import (
 	"log"
 	"net/http"
 	"strconv"
-
-	//"reflect"
 	"strings"
+	//"reflect"
 	//"net/url"
 	//"sync"
 )
@@ -216,22 +215,53 @@ func (db *DbApi) Read(w http.ResponseWriter, r *http.Request) {
 			// 	l, okLen := tp.Length()
 			// 	fmt.Println(tp.DatabaseTypeName(), l, okLen, isNil)
 			// }
+
 			vals := make([]interface{}, len(colTypes))
+			valsCopy := make([]interface{}, len(colTypes))
 			for i, _ := range colTypes {
-				vals[i] = new(sql.RawBytes)
+				valsCopy[i] = new(sql.RawBytes)
+				switch colTypes[i].DatabaseTypeName() {
+				case "INT":
+					vals[i] = new(sql.NullInt64)
+				case "FLOAT", "DOUBLE":
+					vals[i] = new(sql.NullFloat64)
+				case "TEXT", "VARCHAR":
+					vals[i] = new(sql.NullString)
+				default:
+					log.Println("Unknown type:", colTypes[i].DatabaseTypeName())
+					return
+				}
 			}
+
 			for rows.Next() {
 				err = rows.Scan(vals...)
 				if err != nil {
 					log.Println("Error on load rows:", err.Error())
 				}
 
-				for i, _ /*v*/ := range vals {
-					//"VARCHAR", "TEXT", "NVARCHAR", "DECIMAL", "BOOL", "INT", "BIGINT"
+				err = rows.Scan(valsCopy...)
+				if err != nil {
+					log.Println("Error on load rows:", err.Error())
+				}
+
+				for _, v := range valsCopy {
+					str := string(*(v.(*sql.RawBytes)))
+					fmt.Println("string =", str)
+				}
+
+				for i, v := range vals {
 					fmt.Println(colTypes[i].DatabaseTypeName(), colTypes[i].ScanType())
-					// switch colTypes[i].DatabaseTypeName() {
-					// 	case sql.RawBytes
-					// }
+					switch colTypes[i].DatabaseTypeName() {
+					case "INT":
+						fmt.Println(v.(*sql.NullInt64).Int64)
+					case "FLOAT", "DOUBLE":
+						fmt.Println(v.(*sql.NullFloat64).Float64)
+					case "TEXT", "VARCHAR":
+						fmt.Println(v.(*sql.NullString).String)
+					default:
+						log.Println("Unknown type:", colTypes[i].DatabaseTypeName())
+						return
+					}
 					// str := string(*(v.(*sql.RawBytes)))
 					// tables = append(tables, str)
 				}
